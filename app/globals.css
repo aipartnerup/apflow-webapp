@@ -22,5 +22,141 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Smooth transitions for theme switching */
+* {
+  transition-property: background-color, border-color, color;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
+}
+
+/* AppShell custom styles */
+[data-mantine-color-scheme="dark"] .mantine-AppShell-navbar {
+  background-color: var(--mantine-color-dark-8);
+  border-right: 1px solid var(--mantine-color-dark-6);
+}
+
+[data-mantine-color-scheme="light"] .mantine-AppShell-navbar {
+  background-color: #ffffff;
+  border-right: 1px solid var(--mantine-color-gray-2);
+}
+
+
+[data-mantine-color-scheme="dark"] .mantine-AppShell-main {
+  background-color: var(--mantine-color-dark-9);
+}
+
+[data-mantine-color-scheme="light"] .mantine-AppShell-main {
+  background-color: var(--mantine-color-gray-0);
+}
+
+/* NavLink custom styles */
+.mantine-NavLink-root {
+  border-radius: var(--mantine-radius-md);
+  margin-bottom: var(--mantine-spacing-xs);
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
+  transition: all 0.2s ease;
+  color: var(--mantine-color-gray-7);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root {
+  color: var(--mantine-color-dark-1);
+}
+
+.mantine-NavLink-root:hover {
+  background-color: var(--mantine-color-gray-1);
+  color: var(--mantine-color-gray-9);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root:hover {
+  background-color: var(--mantine-color-dark-7);
+  color: var(--mantine-color-dark-0);
+}
+
+.mantine-NavLink-root[data-active] {
+  background-color: var(--mantine-color-blue-0);
+  color: var(--mantine-color-blue-7);
+  font-weight: 500;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root[data-active] {
+  background-color: var(--mantine-color-blue-9);
+  color: var(--mantine-color-blue-0);
+}
+
+.mantine-NavLink-root[data-active]:hover {
+  background-color: var(--mantine-color-blue-1);
+  color: var(--mantine-color-blue-8);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root[data-active]:hover {
+  background-color: var(--mantine-color-blue-8);
+  color: var(--mantine-color-blue-0);
+}
+
+.mantine-NavLink-label {
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 400;
+}
+
+/* Nested NavLink (submenu items) styles */
+.mantine-NavLink-root .mantine-NavLink-root {
+  padding-left: var(--mantine-spacing-xl);
+  color: var(--mantine-color-gray-7);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root .mantine-NavLink-root {
+  color: var(--mantine-color-dark-1);
+}
+
+.mantine-NavLink-root .mantine-NavLink-root:hover {
+  background-color: var(--mantine-color-gray-1);
+  color: var(--mantine-color-gray-9);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root .mantine-NavLink-root:hover {
+  background-color: var(--mantine-color-dark-7);
+  color: var(--mantine-color-dark-0);
+}
+
+.mantine-NavLink-root .mantine-NavLink-root[data-active] {
+  background-color: var(--mantine-color-blue-0);
+  color: var(--mantine-color-blue-7);
+  font-weight: 500;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root .mantine-NavLink-root[data-active] {
+  background-color: var(--mantine-color-blue-9);
+  color: var(--mantine-color-blue-0);
+}
+
+.mantine-NavLink-root .mantine-NavLink-root[data-active]:hover {
+  background-color: var(--mantine-color-blue-1);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root .mantine-NavLink-root[data-active]:hover {
+  background-color: var(--mantine-color-blue-8);
+}
+
+/* ActionIcon hover styles */
+.mantine-ActionIcon-root:hover {
+  background-color: var(--mantine-color-gray-1);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-ActionIcon-root:hover {
+  background-color: var(--mantine-color-dark-6);
+}
+
+/* Card custom styles */
+[data-mantine-color-scheme="dark"] .mantine-Card-root {
+  background-color: var(--mantine-color-dark-7);
+  border-color: var(--mantine-color-dark-6);
+}
+
+[data-mantine-color-scheme="light"] .mantine-Card-root {
+  background-color: #ffffff;
+  border-color: var(--mantine-color-gray-2);
 }

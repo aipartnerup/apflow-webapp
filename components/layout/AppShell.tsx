@@ -3,12 +3,11 @@
 /**
  * App Shell Component
  * 
- * Main layout wrapper with AppShell, Navbar, and Header
+ * Main layout wrapper with AppShell and Navbar (left sidebar only)
  */
 
 import { AppShell as MantineAppShell } from '@mantine/core';
 import { AppNavbar } from './Navbar';
-import { AppHeader } from './Header';
 
 interface AppShellWrapperProps {
   children: React.ReactNode;
@@ -17,13 +16,11 @@ interface AppShellWrapperProps {
 export function AppShellWrapper({ children }: AppShellWrapperProps) {
   return (
     <MantineAppShell
-      navbar={{ width: 250, breakpoint: 'sm' }}
-      header={{ height: 60 }}
+      navbar={{ width: 260, breakpoint: 'sm' }}
       padding="md"
     >
       <AppNavbar />
-      <AppHeader />
-      <MantineAppShell.Main>
+      <MantineAppShell.Main style={{ transition: 'background-color 0.2s ease' }}>
         {children}
       </MantineAppShell.Main>
     </MantineAppShell>

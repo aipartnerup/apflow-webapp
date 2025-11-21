@@ -16,7 +16,9 @@
     "refresh": "刷新",
     "back": "返回",
     "submit": "提交",
-    "close": "关闭"
+    "close": "关闭",
+    "darkMode": "暗黑模式",
+    "lightMode": "亮色模式"
   },
   "nav": {
     "dashboard": "仪表盘",

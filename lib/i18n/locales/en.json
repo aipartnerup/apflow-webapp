@@ -16,7 +16,9 @@
     "refresh": "Refresh",
     "back": "Back",
     "submit": "Submit",
-    "close": "Close"
+    "close": "Close",
+    "darkMode": "Dark Mode",
+    "lightMode": "Light Mode"
   },
   "nav": {
     "dashboard": "Dashboard",

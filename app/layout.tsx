@@ -8,12 +8,16 @@ import './globals.css';
 import { AppShellWrapper } from '@/components/layout/AppShell';
 import { I18nProvider } from '@/lib/i18n/provider';
 import { QueryProvider } from '@/lib/providers/QueryProvider';
+import { themeConfig } from '@/lib/theme/config';
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "AIPartnerUpFlow - Task Management",
   description: "Web application for managing and executing tasks with aipartnerupflow",
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
@@ -29,7 +33,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <QueryProvider>
           <I18nProvider>
-            <MantineProvider>
+            <MantineProvider theme={themeConfig} defaultColorScheme="auto">
               <Notifications />
               <AppShellWrapper>
                 {children}
