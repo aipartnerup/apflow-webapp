@@ -6,7 +6,7 @@
  * Left sidebar navigation with menu items, sub-menus, and bottom controls
  */
 
-import { AppShell, NavLink, Group, Text, Select, Divider } from '@mantine/core';
+import { AppShell, NavLink, Group, Text, Select, Divider, Stack } from '@mantine/core';
 import { useMantineColorScheme } from '@mantine/core';
 import {
   IconDashboard,
@@ -111,15 +111,27 @@ export function AppNavbar() {
         <NavLink
           label={t('nav.settings')}
           leftSection={<IconSettings size={18} />}
-          active={isActive('/settings')}
-          onClick={() => router.push('/settings')}
+          rightSection={<IconChevronRight size={16} />}
           style={{ marginBottom: 'var(--mantine-spacing-xs)' }}
-        />
+        >
+          <NavLink
+            label={t('nav.apiSettings')}
+            active={isActive('/settings') && !isActive('/settings/llm')}
+            onClick={() => router.push('/settings')}
+            pl="xl"
+          />
+          <NavLink
+            label={t('nav.llmSettings')}
+            active={isActive('/settings/llm')}
+            onClick={() => router.push('/settings/llm')}
+            pl="xl"
+          />
+        </NavLink>
       </AppShell.Section>
 
       <AppShell.Section>
         <Divider my="md" />
-        <Group p="md" gap="sm" direction="column">
+        <Stack p="md" gap="sm">
           <NavLink
             label={mounted && colorScheme === 'dark' ? t('common.lightMode') : t('common.darkMode')}
             leftSection={mounted && colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
@@ -139,7 +151,7 @@ export function AppNavbar() {
             ]}
             style={{ width: '100%' }}
           />
-        </Group>
+        </Stack>
       </AppShell.Section>
     </AppShell.Navbar>
   );
