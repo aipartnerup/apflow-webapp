@@ -27,6 +27,18 @@ export default function DashboardPage() {
     refetchInterval: 5000,
   });
 
+  // Get all tasks for statistics
+  const { data: allTasks, isLoading: loadingAll } = useQuery({
+    queryKey: ['all-tasks-stats'],
+    queryFn: () => apiClient.listTasks({ limit: 1000 }), // Get up to 1000 tasks for stats
+    refetchInterval: 10000, // Refresh every 10 seconds
+  });
+
+  // Calculate statistics from all tasks
+  const totalTasks = allTasks?.length || 0;
+  const completedTasks = allTasks?.filter(task => task.status === 'completed').length || 0;
+  const failedTasks = allTasks?.filter(task => task.status === 'failed').length || 0;
+
   return (
     <Container size="xl">
       <Title order={1} mb="xl">{t('dashboard.title')}</Title>
@@ -51,7 +63,9 @@ export default function DashboardPage() {
             <Group justify="space-between">
               <div>
                 <Text size="sm" c="dimmed">{t('dashboard.totalTasks')}</Text>
-                <Text fw={700} size="xl">-</Text>
+                <Text fw={700} size="xl">
+                  {loadingAll ? '...' : totalTasks}
+                </Text>
               </div>
               <IconList size={32} color="var(--mantine-color-gray-6)" />
             </Group>
@@ -63,7 +77,9 @@ export default function DashboardPage() {
             <Group justify="space-between">
               <div>
                 <Text size="sm" c="dimmed">{t('dashboard.completedTasks')}</Text>
-                <Text fw={700} size="xl">-</Text>
+                <Text fw={700} size="xl">
+                  {loadingAll ? '...' : completedTasks}
+                </Text>
               </div>
               <IconCheck size={32} color="var(--mantine-color-green-6)" />
             </Group>
@@ -75,7 +91,9 @@ export default function DashboardPage() {
             <Group justify="space-between">
               <div>
                 <Text size="sm" c="dimmed">{t('dashboard.failedTasks')}</Text>
-                <Text fw={700} size="xl">-</Text>
+                <Text fw={700} size="xl">
+                  {loadingAll ? '...' : failedTasks}
+                </Text>
               </div>
               <IconX size={32} color="var(--mantine-color-red-6)" />
             </Group>
