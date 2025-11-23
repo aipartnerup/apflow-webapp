@@ -6,27 +6,34 @@
  * Display list of all tasks with filtering and search
  */
 
-import { Container, Title, Button, Group, TextInput, Table, Badge, ActionIcon, Tooltip, Text, Select, Stack, Alert } from '@mantine/core';
+import { Container, Title, Button, Group, TextInput, Table, Badge, ActionIcon, Tooltip, Text, Select, Stack, Alert, useMantineColorScheme } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api/aipartnerupflow';
+import { apiClient, Task } from '@/lib/api/aipartnerupflow';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
-import { IconPlus, IconSearch, IconEye, IconCopy, IconTrash, IconDatabase, IconInfoCircle, IconPlayerPlay } from '@tabler/icons-react';
-import { useState } from 'react';
+import { IconPlus, IconSearch, IconEye, IconCopy, IconTrash, IconDatabase, IconInfoCircle, IconPlayerPlay, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
+import { useState, Fragment } from 'react';
 import { notifications } from '@mantine/notifications';
 
 export default function TaskListPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { colorScheme } = useMantineColorScheme();
   const [searchQuery, setSearchQuery] = useState('');
 
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [viewMode, setViewMode] = useState<'root' | 'all'>('root');
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const [childrenCache, setChildrenCache] = useState<Record<string, Task[]>>({});
 
-  // List all tasks (not just running ones)
+  // List tasks - default to root only
   const { data: tasks, isLoading } = useQuery({
-    queryKey: ['tasks', searchQuery, statusFilter],
-    queryFn: () => apiClient.listTasks({ status: statusFilter }),
+    queryKey: ['tasks', searchQuery, statusFilter, viewMode],
+    queryFn: () => apiClient.listTasks({ 
+      status: statusFilter,
+      root_only: viewMode === 'root' 
+    }),
   });
 
   // Check examples status
@@ -115,6 +122,39 @@ export default function TaskListPage() {
     },
   });
 
+  // Fetch children for a parent task
+  const fetchChildren = async (parentId: string) => {
+    if (childrenCache[parentId]) {
+      return childrenCache[parentId];
+    }
+    try {
+      const children = await apiClient.getTaskChildren(parentId);
+      setChildrenCache(prev => ({ ...prev, [parentId]: children }));
+      return children;
+    } catch (error: any) {
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to load child tasks',
+        color: 'red',
+      });
+      return [];
+    }
+  };
+
+  const toggleExpand = async (taskId: string) => {
+    const newExpanded = new Set(expandedTasks);
+    if (newExpanded.has(taskId)) {
+      newExpanded.delete(taskId);
+    } else {
+      newExpanded.add(taskId);
+      // If children not loaded yet, fetch them
+      if (!childrenCache[taskId]) {
+        await fetchChildren(taskId);
+      }
+    }
+    setExpandedTasks(newExpanded);
+  };
+
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'completed':
@@ -135,6 +175,136 @@ export default function TaskListPage() {
     task.id.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
 
+  // Render task row recursively (supports nested children)
+  const renderTaskRow = (task: Task, level: number = 0) => {
+    const isExpanded = expandedTasks.has(task.id);
+    const children = childrenCache[task.id] || [];
+    const isRoot = level === 0;
+    // Check if task has children:
+    // 1. Use has_children field if available (from backend)
+    // 2. If we've already loaded children and there are some, it has children
+    const hasChildren = task.has_children === true || children.length > 0;
+
+    // Get background color based on theme and level
+    const getBackgroundColor = () => {
+      if (level === 0) return undefined;
+      // Use theme-appropriate colors
+      if (colorScheme === 'dark') {
+        return 'var(--mantine-color-dark-7)';
+      }
+      return 'var(--mantine-color-gray-0)';
+    };
+
+    // Get text color based on theme and level
+    const getTextColor = () => {
+      if (level === 0) return undefined;
+      if (colorScheme === 'dark') {
+        return 'var(--mantine-color-dark-0)';
+      }
+      return 'var(--mantine-color-gray-9)';
+    };
+
+    return (
+      <Fragment key={task.id}>
+        <Table.Tr 
+          style={{ 
+            backgroundColor: getBackgroundColor(),
+            color: getTextColor()
+          }}
+        >
+          <Table.Td>
+            <Group gap="xs">
+              {isRoot && hasChildren && (
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  onClick={() => toggleExpand(task.id)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                </ActionIcon>
+              )}
+              {isRoot && !hasChildren && (
+                <div style={{ width: 20 }} /> // Spacer to align with tasks that have children
+              )}
+              {!isRoot && (
+                <Text size="sm" c="dimmed" style={{ marginLeft: `${(level - 1) * 20}px` }}>
+                  └─
+                </Text>
+              )}
+              <Text size="sm" ff="monospace" c={level > 0 ? (colorScheme === 'dark' ? 'dark.0' : 'gray.9') : undefined}>
+                {task.id.substring(0, 8)}...
+              </Text>
+            </Group>
+          </Table.Td>
+          <Table.Td>
+            <Text 
+              fw={level > 0 ? 500 : undefined}
+              style={{ marginLeft: !isRoot ? `${level * 20}px` : 0 }} 
+              c={level > 0 ? (colorScheme === 'dark' ? 'dark.0' : 'gray.9') : undefined}
+            >
+              {task.name}
+            </Text>
+          </Table.Td>
+          <Table.Td>
+            <Badge color={getStatusColor(task.status)}>
+              {task.status || 'pending'}
+            </Badge>
+          </Table.Td>
+          <Table.Td>
+            <Text c={level > 0 ? (colorScheme === 'dark' ? 'dark.0' : 'gray.9') : undefined}>
+              {Math.round((task.progress || 0) * 100)}%
+            </Text>
+          </Table.Td>
+          <Table.Td>
+            <Group gap="xs">
+              <Tooltip label={t('tasks.view')}>
+                <ActionIcon
+                  variant="subtle"
+                  onClick={() => router.push(`/tasks/${task.id}`)}
+                >
+                  <IconEye size={16} />
+                </ActionIcon>
+              </Tooltip>
+              {(task.status === 'pending' || task.status === 'failed') && (
+                <Tooltip label="Execute Task">
+                  <ActionIcon
+                    variant="subtle"
+                    color="blue"
+                    onClick={() => executeMutation.mutate(task.id)}
+                    loading={executeMutation.isPending}
+                  >
+                    <IconPlayerPlay size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+              <Tooltip label={t('tasks.copy')}>
+                <ActionIcon
+                  variant="subtle"
+                  onClick={() => copyMutation.mutate(task.id)}
+                  loading={copyMutation.isPending}
+                >
+                  <IconCopy size={16} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label={t('tasks.delete')}>
+                <ActionIcon
+                  variant="subtle"
+                  color="red"
+                  onClick={() => deleteMutation.mutate(task.id)}
+                  loading={deleteMutation.isPending}
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+          </Table.Td>
+        </Table.Tr>
+        {isExpanded && children.map((child) => renderTaskRow(child, level + 1))}
+      </Fragment>
+    );
+  };
+
   return (
     <Container size="xl">
       <Group justify="space-between" mb="xl">
@@ -154,6 +324,20 @@ export default function TaskListPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{ flex: 1 }}
+        />
+        <Select
+          placeholder="View Mode"
+          value={viewMode}
+          onChange={(value) => {
+            setViewMode(value as 'root' | 'all');
+            setExpandedTasks(new Set()); // Clear expanded state when switching view
+            setChildrenCache({}); // Clear cache
+          }}
+          data={[
+            { value: 'root', label: 'Root Tasks Only' },
+            { value: 'all', label: 'All Tasks' },
+          ]}
+          style={{ width: 180 }}
         />
         <Select
           placeholder={t('tasks.filterByStatus') || 'Filter by status'}
@@ -226,67 +410,7 @@ export default function TaskListPage() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {filteredTasks.map((task) => (
-              <Table.Tr key={task.id}>
-                <Table.Td>
-                  <Text size="sm" ff="monospace">
-                    {task.id.substring(0, 8)}...
-                  </Text>
-                </Table.Td>
-                <Table.Td>{task.name}</Table.Td>
-                <Table.Td>
-                  <Badge color={getStatusColor(task.status)}>
-                    {task.status || 'pending'}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  {Math.round((task.progress || 0) * 100)}%
-                </Table.Td>
-                <Table.Td>
-                  <Group gap="xs">
-                    <Tooltip label={t('tasks.view')}>
-                      <ActionIcon
-                        variant="subtle"
-                        onClick={() => router.push(`/tasks/${task.id}`)}
-                      >
-                        <IconEye size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    {(task.status === 'pending' || task.status === 'failed') && (
-                      <Tooltip label="Execute Task">
-                        <ActionIcon
-                          variant="subtle"
-                          color="blue"
-                          onClick={() => executeMutation.mutate(task.id)}
-                          loading={executeMutation.isPending}
-                        >
-                          <IconPlayerPlay size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    )}
-                    <Tooltip label={t('tasks.copy')}>
-                      <ActionIcon
-                        variant="subtle"
-                        onClick={() => copyMutation.mutate(task.id)}
-                        loading={copyMutation.isPending}
-                      >
-                        <IconCopy size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label={t('tasks.delete')}>
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        onClick={() => deleteMutation.mutate(task.id)}
-                        loading={deleteMutation.isPending}
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
+            {filteredTasks.map((task) => renderTaskRow(task))}
           </Table.Tbody>
         </Table>
       )}
