@@ -1,0 +1,112 @@
+<svg width="512" height="512" viewBox="-162 -185 324 370" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="centerGlow" cx="50%" cy="50%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#FF2222;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Background removed for transparency -->
+  
+  <g transform="translate(0, 0)">
+    <!-- Main hexagon structure - reference aipartnerup-logo.png design -->
+    <g>
+      <!-- Central hexagon -->
+      <path d="M 0,-120 L 103.92,-60 L 103.92,60 L 0,120 L -103.92,60 L -103.92,-60 Z" 
+            fill="#FF0000" 
+            stroke="#000000" 
+            stroke-width="2.5"/>
+      
+      <!-- Six trapezoidal facets around the central hexagon -->
+      <!-- Top facet -->
+      <path d="M 0,-120 L 103.92,-60 L 147.22,-85 L 0,-170 Z" 
+            fill="#FF0000" 
+            stroke="#000000" 
+            stroke-width="2.5"/>
+      
+      <!-- Top-right facet -->
+      <path d="M 103.92,-60 L 103.92,60 L 147.22,85 L 147.22,-85 Z" 
+            fill="#FF0000" 
+            stroke="#000000" 
+            stroke-width="2.5"/>
+      
+      <!-- Bottom-right facet -->
+      <path d="M 103.92,60 L 0,120 L 0,170 L 147.22,85 Z" 
+            fill="#FF0000" 
+            stroke="#000000" 
+            stroke-width="2.5"/>
+      
+      <!-- Bottom facet -->
+      <path d="M 0,120 L -103.92,60 L -147.22,85 L 0,170 Z" 
+            fill="#FF0000" 
+            stroke="#000000" 
+            stroke-width="2.5"/>
+      
+      <!-- Bottom-left facet -->
+      <path d="M -103.92,60 L -103.92,-60 L -147.22,-85 L -147.22,85 Z" 
+            fill="#FF0000" 
+            stroke="#000000" 
+            stroke-width="2.5"/>
+      
+      <!-- Top-left facet -->
+      <path d="M -103.92,-60 L 0,-120 L 0,-170 L -147.22,-85 Z" 
+            fill="#FF0000" 
+            stroke="#000000" 
+            stroke-width="2.5"/>
+    </g>
+    
+    <!-- Central hub -->
+    <circle cx="0" cy="0" r="14" fill="#FFFFFF" opacity="1"/>
+    
+    <!-- Tree branches - all nodes within inner hexagon -->
+    <g stroke="#FFFFFF" stroke-width="4" fill="none" opacity="0.95" stroke-linecap="round">
+      <!-- Branch 1: Top (upward) - One node (no sub-nodes, direct to leaf) -->
+      <line x1="0" y1="0" x2="0" y2="-90"/>
+      
+      <!-- Branch 2: Bottom-left (-60 degrees) - Two nodes (one sub-node) -->
+      <line x1="0" y1="0" x2="-55" y2="32"/>
+      <line x1="-55" y1="32" x2="-80" y2="46"/>
+      
+      <!-- Branch 3: Right (0 degrees) - Multiple sub-nodes (tree shape) moved further left to stay within hexagon -->
+      <line x1="0" y1="0" x2="40" y2="0"/>
+      <!-- Middle node with increased spacing from parent node -->
+      <line x1="40" y1="0" x2="65" y2="0"/>
+      <!-- Top and bottom nodes with longer connection lines -->
+      <line x1="40" y1="0" x2="75" y2="-45"/>
+      <line x1="40" y1="0" x2="75" y2="45"/>
+      <!-- Third level nodes from top branch - moved further left to stay within hexagon -->
+      <line x1="75" y1="-45" x2="90" y2="-58"/>
+      <line x1="75" y1="-45" x2="90" y2="-32"/>
+      <!-- Third level nodes from bottom branch - moved further left to stay within hexagon -->
+      <line x1="75" y1="45" x2="90" y2="32"/>
+      <line x1="75" y1="45" x2="90" y2="58"/>
+    </g>
+    
+    <!-- Tree nodes -->
+    <g opacity="1">
+      <!-- Branch 1 node - One node (no sub-nodes, leaf) -->
+      <circle cx="0" cy="-90" r="9" fill="#FFFFFF"/>
+      
+      <!-- Branch 2 nodes - Two nodes (one sub-node) -->
+      <circle cx="-55" cy="32" r="9" fill="#FFFFFF"/>
+      <circle cx="-80" cy="46" r="8" fill="#FFFFFF" opacity="1"/>
+      
+      <!-- Branch 3 nodes - Multiple sub-nodes moved further left to stay within hexagon -->
+      <circle cx="40" cy="0" r="10" fill="#FFFFFF"/>
+      <!-- Middle node with increased spacing from parent -->
+      <circle cx="65" cy="0" r="8" fill="#FFFFFF" opacity="1"/>
+      <!-- Top and bottom nodes moved further left -->
+      <circle cx="75" cy="-45" r="8" fill="#FFFFFF" opacity="1"/>
+      <circle cx="75" cy="45" r="8" fill="#FFFFFF" opacity="1"/>
+      <!-- Third level nodes moved further left (90+7=97, safe margin from 103.92) -->
+      <circle cx="90" cy="-58" r="7" fill="#FFFFFF" opacity="0.95"/>
+      <circle cx="90" cy="-32" r="7" fill="#FFFFFF" opacity="0.95"/>
+      <circle cx="90" cy="32" r="7" fill="#FFFFFF" opacity="0.95"/>
+      <circle cx="90" cy="58" r="7" fill="#FFFFFF" opacity="0.95"/>
+    </g>
+    
+    <!-- Center glow effect -->
+    <circle cx="0" cy="0" r="55" fill="url(#centerGlow)"/>
+  </g>
+</svg>
+

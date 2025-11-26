@@ -59,13 +59,18 @@ export function AppNavbar() {
       <AppShell.Section>
         <Group p="md" gap="sm">
           <Image
-            src="/logo.png"
+            src="/logo.svg"
             alt="AIPartnerUpFlow Logo"
-            width={28}
-            height={28}
+            width={32}
+            height={32}
             style={{ objectFit: 'contain' }}
           />
-          <Text fw={700} size="lg" style={{ userSelect: 'none' }}>
+          <Text 
+            fw={700} 
+            size="lg" 
+            style={{ userSelect: 'none' }}
+            className="navbar-brand-text"
+          >
             AIPartnerUpFlow
           </Text>
         </Group>

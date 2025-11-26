@@ -40,8 +40,17 @@ body {
 }
 
 [data-mantine-color-scheme="light"] .mantine-AppShell-navbar {
-  background-color: #ffffff;
-  border-right: 1px solid var(--mantine-color-gray-2);
+  background-color: #f5f5f7;
+  border-right: 1px solid var(--mantine-color-gray-3);
+}
+
+/* Navbar brand text color */
+.navbar-brand-text {
+  color: var(--mantine-color-gray-9);
+}
+
+[data-mantine-color-scheme="dark"] .navbar-brand-text {
+  color: var(--mantine-color-dark-0);
 }
 
 
