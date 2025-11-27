@@ -12,7 +12,7 @@ import { apiClient, Task } from '@/lib/api/aipartnerupflow';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 import { IconPlus, IconSearch, IconEye, IconCopy, IconTrash, IconDatabase, IconInfoCircle, IconPlayerPlay, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
-import { useState, Fragment } from 'react';
+import { useState, useRef, useEffect, Fragment } from 'react';
 import { notifications } from '@mantine/notifications';
 
 export default function TaskListPage() {
@@ -26,6 +26,9 @@ export default function TaskListPage() {
   const [viewMode, setViewMode] = useState<'root' | 'all'>('root');
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [childrenCache, setChildrenCache] = useState<Record<string, Task[]>>({});
+  
+  // Ref to store SSE cleanup functions (one per task)
+  const sseCleanupRefs = useRef<Map<string, () => void>>(new Map());
 
   // List tasks - default to root only
   const { data: tasks, isLoading } = useQuery({
@@ -103,15 +106,44 @@ export default function TaskListPage() {
   });
 
   const executeMutation = useMutation({
-    mutationFn: (taskId: string) => apiClient.executeTask(taskId),
+    mutationFn: (taskId: string) => {
+      return apiClient.executeTask(
+        taskId,
+        true, // Enable streaming
+        (event: any) => {
+          // Handle SSE events in real-time
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
+
+          // Show notification on completion or failure
+          if (event.final || event.type === 'stream_end') {
+            if (event.status === 'completed') {
+              notifications.show({
+                title: 'Task Completed',
+                message: `Task ${taskId} completed successfully`,
+                color: 'green',
+              });
+            } else if (event.status === 'failed') {
+              notifications.show({
+                title: 'Task Failed',
+                message: event.error || `Task ${taskId} execution failed`,
+                color: 'red',
+              });
+            }
+          }
+        }
+      );
+    },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
       notifications.show({
         title: t('common.success'),
         message: data.message || 'Task execution started',
         color: 'green',
       });
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
     },
     onError: (error: any) => {
       notifications.show({
@@ -121,6 +153,14 @@ export default function TaskListPage() {
       });
     },
   });
+
+  // Cleanup all SSE connections on unmount
+  useEffect(() => {
+    return () => {
+      sseCleanupRefs.current.forEach((cleanup) => cleanup());
+      sseCleanupRefs.current.clear();
+    };
+  }, []);
 
   // Fetch children for a parent task
   const fetchChildren = async (parentId: string) => {

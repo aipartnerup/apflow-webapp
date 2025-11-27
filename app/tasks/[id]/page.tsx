@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { notifications } from '@mantine/notifications';
 import { IconArrowLeft, IconTree, IconInfoCircle, IconCode, IconFileText, IconPlayerPlay } from '@tabler/icons-react';
 import { TaskTreeView } from '@/components/tasks/TaskTreeView';
-import { use } from 'react';
+import { use, useEffect, useRef } from 'react';
 
 export default function TaskDetailPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
   const { t } = useTranslation();
@@ -43,16 +43,58 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   });
 
   const executeMutation = useMutation({
-    mutationFn: (taskId: string) => apiClient.executeTask(taskId),
+    mutationFn: (taskId: string) => {
+      return apiClient.executeTask(
+        taskId,
+        true, // Enable streaming
+        (event: any) => {
+          // Handle SSE events in real-time
+          queryClient.setQueryData(['task', taskId], (oldData: Task | undefined) => {
+            if (!oldData) return oldData;
+            return {
+              ...oldData,
+              status: event.status || oldData.status,
+              progress: event.progress !== undefined ? event.progress : oldData.progress,
+              result: event.result !== undefined ? event.result : oldData.result,
+              error: event.error || oldData.error,
+            };
+          });
+
+          // Invalidate queries to refresh tree view
+          queryClient.invalidateQueries({ queryKey: ['task-tree', taskId] });
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
+
+          // Show notification on completion or failure
+          if (event.final || event.type === 'stream_end') {
+            if (event.status === 'completed') {
+              notifications.show({
+                title: 'Task Completed',
+                message: 'Task execution completed successfully',
+                color: 'green',
+              });
+            } else if (event.status === 'failed') {
+              notifications.show({
+                title: 'Task Failed',
+                message: event.error || 'Task execution failed',
+                color: 'red',
+              });
+            }
+          }
+        }
+      );
+    },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
       notifications.show({
         title: 'Success',
         message: data.message || 'Task execution started',
         color: 'green',
       });
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
     },
     onError: (error: any) => {
       notifications.show({

@@ -2,21 +2,10 @@
  * AIPartnerUpFlow API Client
  * 
  * This client handles all communication with the aipartnerupflow API server
- * using JSON-RPC 2.0 protocol and A2A Protocol for task execution.
+ * using JSON-RPC 2.0 protocol with SSE streaming for task execution.
  */
 
 import axios, { AxiosInstance } from 'axios';
-// Try to import A2A SDK - adjust imports based on actual SDK API
-let A2ASDK: any = null;
-try {
-  A2ASDK = require('@a2a-js/sdk');
-  // Log available exports for debugging
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.log('A2A SDK loaded, available exports:', Object.keys(A2ASDK || {}));
-  }
-} catch (e) {
-  console.warn('A2A SDK not available, will use fallback method:', e);
-}
 
 export interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -90,11 +79,31 @@ export interface SystemHealth {
   uptime: number;
 }
 
+export interface TaskExecutionResponse {
+  success: boolean;
+  root_task_id: string;
+  task_id: string;
+  status: string;
+  message: string;
+  streaming?: boolean;
+  events_url?: string;
+}
+
+export interface TaskEvent {
+  type: string;
+  task_id?: string;
+  status?: string;
+  progress?: number;
+  result?: any;
+  error?: string;
+  final?: boolean;
+  [key: string]: any;
+}
+
 export class AIPartnerUpFlowClient {
   private client: AxiosInstance;
   private requestId = 0;
   private baseURL: string;
-  private a2aClient: any = null; // A2A Client instance (lazy initialized)
 
   constructor(baseURL: string = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') {
     this.baseURL = baseURL;
@@ -161,101 +170,6 @@ export class AIPartnerUpFlowClient {
     }
   }
 
-  /**
-   * Initialize A2A client (lazy initialization)
-   * Creates A2A client using ClientFactory pattern similar to test_a2a_client.py
-   * Falls back to direct HTTP if SDK is not available
-   */
-  private async getA2AClient(): Promise<any> {
-    if (this.a2aClient) {
-      return this.a2aClient;
-    }
-
-    // If SDK is not available, return null to use direct HTTP approach
-    if (!A2ASDK) {
-      console.warn('[A2A Client] SDK not available, will use direct HTTP approach');
-      return null;
-    }
-
-    try {
-      console.log('[A2A Client] Initializing A2A client...');
-      
-      // Create axios instance for A2A client (reuse existing client to inherit interceptors)
-      const axiosInstance = this.client;
-
-      // Try to use A2A SDK - check multiple possible export patterns
-      let ClientFactory: any = null;
-      let ClientConfig: any = null;
-      let AgentCard: any = null;
-
-      // Log available exports for debugging
-      const availableKeys = A2ASDK ? Object.keys(A2ASDK) : [];
-      console.log('[A2A Client] Available SDK exports:', availableKeys);
-
-      // Try different export patterns
-      if (A2ASDK.ClientFactory) {
-        console.log('[A2A Client] Using direct exports (ClientFactory, ClientConfig, AgentCard)');
-        ClientFactory = A2ASDK.ClientFactory;
-        ClientConfig = A2ASDK.ClientConfig;
-        AgentCard = A2ASDK.AgentCard;
-      } else if (A2ASDK.default) {
-        console.log('[A2A Client] Using default export');
-        ClientFactory = A2ASDK.default.ClientFactory || A2ASDK.default;
-        ClientConfig = A2ASDK.default.ClientConfig;
-        AgentCard = A2ASDK.default.AgentCard;
-      } else if (typeof A2ASDK === 'function') {
-        console.log('[A2A Client] SDK is a function');
-        // SDK might export a single function
-        ClientFactory = A2ASDK;
-      }
-
-      // If SDK classes not found, log and return null to use HTTP fallback
-      if (!ClientFactory || !ClientConfig) {
-        console.warn('[A2A Client] ClientFactory/ClientConfig not found. Available exports:', availableKeys);
-        console.warn('[A2A Client] Will use direct HTTP approach instead');
-        return null;
-      }
-
-      console.log('[A2A Client] Creating ClientConfig...');
-      // Create A2A client config
-      const config = new ClientConfig({
-        streaming: true,
-        polling: false,
-        // Use axios instance for HTTP client
-        httpClient: axiosInstance,
-      });
-
-      console.log('[A2A Client] Creating ClientFactory...');
-      // Create client factory
-      const factory = new ClientFactory(config);
-
-      console.log('[A2A Client] Fetching agent card...');
-      // Fetch agent card first (required to create client)
-      const cardResponse = await axiosInstance.get('/.well-known/agent-card');
-      const cardData = cardResponse.data;
-      console.log('[A2A Client] Agent card received:', cardData);
-      
-      console.log('[A2A Client] Parsing agent card...');
-      // Parse agent card
-      const agentCard = AgentCard.fromJSON ? AgentCard.fromJSON(cardData) : new AgentCard(cardData);
-
-      console.log('[A2A Client] Creating A2A client from factory...');
-      // Create A2A client using factory
-      this.a2aClient = factory.create(agentCard);
-
-      console.log('[A2A Client] A2A client initialized successfully');
-      return this.a2aClient;
-    } catch (error: any) {
-      console.error('[A2A Client] Failed to initialize A2A SDK client:', error);
-      console.error('[A2A Client] Error details:', {
-        message: error?.message,
-        stack: error?.stack,
-        name: error?.name,
-      });
-      console.warn('[A2A Client] Will use HTTP fallback');
-      return null; // Return null to trigger HTTP fallback
-    }
-  }
 
   // Task Management Methods
 
@@ -388,172 +302,19 @@ export class AIPartnerUpFlowClient {
   }
 
   /**
-   * Execute a task by ID
-   */
-  /**
-   * Execute task using A2A Protocol with A2A SDK Client (recommended method)
+   * Execute a task by ID using JSON-RPC tasks.execute endpoint
    * 
-   * This method uses the official A2A SDK Client, following the pattern from test_a2a_client.py:
-   * - Creates an A2A Message with data part containing task data
-   * - Uses A2A Client.send_message() to send the message
-   * - Handles streaming responses if enabled
+   * @param taskId Task ID to execute
+   * @param useStreaming If true, enables SSE streaming for real-time updates (default: true)
+   * @param onEvent Optional callback for SSE events when useStreaming is true
+   * @returns Execution response with root_task_id. If useStreaming=true, returns initial response and streams events via onEvent
    */
   async executeTask(
     taskId: string,
-    useStreaming = false
-  ): Promise<{ success: boolean; root_task_id: string; task_id: string; status: string; message: string }> {
-    try {
-      // Get A2A client (lazy initialization) - returns null if SDK not available
-      const a2aClient = await this.getA2AClient();
-      
-      // First, get task details to build task data for A2A message
-      const task = await this.getTask(taskId);
-      
-      // Detect provider for LLM key
-      const provider = this.detectProviderFromTask(task);
-      
-      // Prepare task data in A2A format (similar to test_a2a_client.py)
-      const taskData = {
-        id: task.id,
-        name: task.name,
-        user_id: task.user_id,
-        status: task.status || 'pending',
-        priority: task.priority || 1,
-        has_children: task.has_children || false,
-        dependencies: task.dependencies || [],
-        schemas: task.schemas || {},
-        inputs: task.inputs || {},
-        params: task.params,
-      };
-      
-      // Get LLM key and format as provider:key if provider is detected
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (typeof window !== 'undefined') {
-        let llmKey: string | null = null;
-        
-        if (provider) {
-          // Use provider-specific key
-          llmKey = localStorage.getItem(`llm_api_key_${provider}`);
-        }
-        
-        // Fallback to default key if provider-specific key not found
-        if (!llmKey) {
-          llmKey = localStorage.getItem('llm_api_key');
-        }
-        
-        if (llmKey) {
-          // Format: provider:key or just key (backward compatible)
-          if (provider) {
-            headers['X-LLM-API-KEY'] = `${provider}:${llmKey}`;
-          } else {
-            headers['X-LLM-API-KEY'] = llmKey;
-          }
-        }
-      }
-      
-      // Create A2A Message (following test_a2a_client.py pattern)
-      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Create A2A message in plain object format (works with or without SDK)
-      const a2aMessage = {
-        message_id: messageId,
-        role: 'user',
-        parts: [
-          {
-            kind: 'data' as const,
-            data: { tasks: [taskData] },
-          },
-        ],
-        metadata: useStreaming ? { stream: true } : undefined,
-      };
-      
-      // If A2A SDK client is available, use it
-      if (a2aClient) {
-        try {
-          // Try to use SDK client
-          const sendMethod = a2aClient.send_message || a2aClient.sendMessage || a2aClient.send;
-          if (sendMethod) {
-            const responses: any[] = [];
-            const responseIterator = sendMethod.call(a2aClient, a2aMessage);
-            
-            for await (const response of responseIterator) {
-              responses.push(response);
-              
-              // Response can be either Message or (Task, Update) tuple
-              if (response && typeof response === 'object') {
-                // Check if it's a Message with parts
-                if ('parts' in response && response.parts) {
-                  for (const part of response.parts) {
-                    if (part.kind === 'data' && part.data) {
-                      const resultData = part.data;
-                      if (resultData.status || resultData.root_task_id || resultData.task_id) {
-                        return {
-                          success: resultData.status !== 'failed',
-                          root_task_id: resultData.root_task_id || taskId,
-                          task_id: resultData.task_id || taskId,
-                          status: resultData.status || 'started',
-                          message: resultData.message || 'Task execution started',
-                        };
-                      }
-                    }
-                  }
-                } else if (Array.isArray(response) && response.length === 2) {
-                  // Response is (Task, Update) tuple
-                  const [task, update] = response;
-                  if (task && task.id) {
-                    return {
-                      success: true,
-                      root_task_id: task.id,
-                      task_id: task.id,
-                      status: update?.status || 'started',
-                      message: update?.message || 'Task execution started',
-                    };
-                  }
-                }
-              }
-            }
-            
-            // If we got responses but no specific result, return success
-            if (responses.length > 0) {
-              return {
-                success: true,
-                root_task_id: taskId,
-                task_id: taskId,
-                status: 'started',
-                message: 'Task execution started via A2A SDK',
-              };
-            }
-          }
-        } catch (sdkError) {
-          console.warn('[Task Execution] A2A SDK client execution failed, falling back to JSON-RPC:', sdkError);
-          // Fall through to JSON-RPC approach
-        }
-      }
-      
-      // If A2A SDK is not available, fall back to JSON-RPC method
-      // The server expects JSON-RPC format, not raw A2A messages
-      // This is expected behavior - JSON-RPC is the standard method
-      console.log('[Task Execution] Using JSON-RPC method (A2A SDK not available or not configured)');
-      return this.executeTaskLegacy(taskId, useStreaming);
-    } catch (error: any) {
-      // If A2A protocol fails, fall back to JSON-RPC method for backward compatibility
-      console.warn('[Task Execution] A2A protocol execution failed, falling back to JSON-RPC:', error);
-      return this.executeTaskLegacy(taskId, useStreaming);
-    }
-  }
-
-  /**
-   * Legacy executeTask method using JSON-RPC tasks.execute (kept for backward compatibility)
-   * @deprecated Use executeTask() which uses A2A Protocol instead
-   */
-  private async executeTaskLegacy(
-    taskId: string,
-    useStreaming = false
-  ): Promise<{ success: boolean; root_task_id: string; task_id: string; status: string; message: string }> {
-    // First, get task details to detect provider
+    useStreaming = true,
+    onEvent?: (event: TaskEvent) => void
+  ): Promise<TaskExecutionResponse> {
+    // First, get task details to detect provider for LLM key
     let provider: string | undefined;
     try {
       const task = await this.getTask(taskId);
@@ -602,7 +363,125 @@ export class AIPartnerUpFlowClient {
       }
     }
     
-    const response = await this.client.post<JsonRpcResponse<{ success: boolean; root_task_id: string; task_id: string; status: string; message: string }>>(
+    // If streaming is enabled, use EventSource for SSE
+    if (useStreaming && onEvent && typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
+      // For SSE, we need to use fetch with stream handling
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const authHeaders: Record<string, string> = {};
+      if (token) {
+        authHeaders['Authorization'] = `Bearer ${token}`;
+      }
+      
+      // Merge headers
+      const allHeaders = { ...headers, ...authHeaders };
+      
+      // Use fetch for SSE streaming
+      const response = await fetch(`${this.baseURL}/tasks`, {
+        method: 'POST',
+        headers: allHeaders,
+        body: JSON.stringify(request),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+        throw new Error(errorData.error?.message || 'Unknown error');
+      }
+      
+      // Check if response is SSE (text/event-stream)
+      const contentType = response.headers.get('content-type');
+      if (contentType?.includes('text/event-stream')) {
+        // Handle SSE stream
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        if (!reader) {
+          throw new Error('Response body is not readable');
+        }
+        
+        // Read initial response
+        let initialResponse: TaskExecutionResponse | null = null;
+        
+        const processStream = async () => {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6); // Remove 'data: ' prefix
+                try {
+                  const parsed = JSON.parse(data);
+                  
+                  // Check if it's the initial JSON-RPC response
+                  if (parsed.jsonrpc === '2.0' && parsed.result) {
+                    initialResponse = parsed.result;
+                  } else if (parsed.type) {
+                    // It's an event, call the callback
+                    onEvent(parsed);
+                    
+                    // Stop if final event
+                    if (parsed.final || parsed.type === 'stream_end') {
+                      return initialResponse || {
+                        success: true,
+                        root_task_id: taskId,
+                        task_id: taskId,
+                        status: 'started',
+                        message: 'Task execution started',
+                      };
+                    }
+                  }
+                } catch (e) {
+                  console.error('Error parsing SSE data:', e, data);
+                }
+              }
+            }
+          }
+          
+          return initialResponse || {
+            success: true,
+            root_task_id: taskId,
+            task_id: taskId,
+            status: 'started',
+            message: 'Task execution started',
+          };
+        };
+        
+        // Process stream in background and return initial response
+        processStream().catch((error) => {
+          console.error('Error processing SSE stream:', error);
+          if (onEvent) {
+            onEvent({
+              type: 'error',
+              error: error.message || 'Stream processing error',
+            });
+          }
+        });
+        
+        // Return initial response (will be updated via events)
+        return initialResponse || {
+          success: true,
+          root_task_id: taskId,
+          task_id: taskId,
+          status: 'started',
+          message: 'Task execution started',
+        };
+      } else {
+        // Fallback to JSON response
+        const data = await response.json();
+        if (data.error) {
+          throw new Error(data.error.message || 'Unknown error');
+        }
+        return data.result || data;
+      }
+    }
+    
+    // Non-streaming mode: use regular JSON-RPC
+    const response = await this.client.post<JsonRpcResponse<TaskExecutionResponse>>(
       '/tasks',
       request,
       { headers }
@@ -613,6 +492,62 @@ export class AIPartnerUpFlowClient {
     }
     
     return response.data.result!;
+  }
+
+  /**
+   * Poll task status for real-time updates
+   * 
+   * @param taskId Task ID to poll
+   * @param onUpdate Callback function called when task status is updated
+   * @param interval Polling interval in milliseconds (default: 1000ms)
+   * @returns Cleanup function to stop polling
+   */
+  pollTaskStatus(
+    taskId: string,
+    onUpdate: (task: Task) => void,
+    interval: number = 1000
+  ): () => void {
+    if (typeof window === 'undefined') {
+      console.warn('Polling is not available in this environment');
+      return () => {};
+    }
+
+    let isPolling = true;
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    const poll = async () => {
+      if (!isPolling) return;
+
+      try {
+        const task = await this.getTask(taskId);
+        onUpdate(task);
+
+        // Stop polling if task is completed or failed
+        if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+          isPolling = false;
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+          }
+        }
+      } catch (error) {
+        console.error('Error polling task status:', error);
+        // Continue polling on error
+      }
+    };
+
+    // Start polling immediately, then at intervals
+    poll();
+    pollInterval = setInterval(poll, interval);
+
+    // Return cleanup function
+    return () => {
+      isPolling = false;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    };
   }
 
   /**
