@@ -24,7 +24,11 @@ import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 
-export function AppNavbar() {
+interface AppNavbarProps {
+  onNavigate?: () => void;
+}
+
+export function AppNavbar({ onNavigate }: AppNavbarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { t, i18n } = useTranslation();
@@ -81,7 +85,10 @@ export function AppNavbar() {
           label={t('nav.dashboard')}
           leftSection={<IconDashboard size={18} />}
           active={isActive('/')}
-          onClick={() => router.push('/')}
+          onClick={() => {
+            router.push('/');
+            onNavigate?.();
+          }}
           style={{ marginBottom: 'var(--mantine-spacing-xs)' }}
         />
 
@@ -94,21 +101,30 @@ export function AppNavbar() {
           <NavLink
             label={t('nav.taskList')}
             active={isActive('/tasks')}
-            onClick={() => router.push('/tasks')}
+            onClick={() => {
+              router.push('/tasks');
+              onNavigate?.();
+            }}
             pl="xl"
           />
           <NavLink
             label={t('nav.createTask')}
             leftSection={<IconPlus size={18} />}
             active={isActive('/tasks/create')}
-            onClick={() => router.push('/tasks/create')}
+            onClick={() => {
+              router.push('/tasks/create');
+              onNavigate?.();
+            }}
             pl="xl"
           />
           <NavLink
             label={t('nav.runningTasks')}
             leftSection={<IconPlayerPlay size={18} />}
             active={isActive('/tasks/running')}
-            onClick={() => router.push('/tasks/running')}
+            onClick={() => {
+              router.push('/tasks/running');
+              onNavigate?.();
+            }}
             pl="xl"
           />
         </NavLink>
@@ -122,13 +138,19 @@ export function AppNavbar() {
           <NavLink
             label={t('nav.apiSettings')}
             active={isActive('/settings') && !isActive('/settings/llm')}
-            onClick={() => router.push('/settings')}
+            onClick={() => {
+              router.push('/settings');
+              onNavigate?.();
+            }}
             pl="xl"
           />
           <NavLink
             label={t('nav.llmSettings')}
             active={isActive('/settings/llm')}
-            onClick={() => router.push('/settings/llm')}
+            onClick={() => {
+              router.push('/settings/llm');
+              onNavigate?.();
+            }}
             pl="xl"
           />
         </NavLink>
