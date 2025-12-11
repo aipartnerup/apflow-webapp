@@ -115,6 +115,8 @@ export class AIPartnerUpFlowClient {
       // Enable credentials (cookies) for cross-origin requests
       // This allows demo server's cookie-based authentication to work automatically
       withCredentials: true,
+      // Add timeout to prevent hanging requests
+      timeout: 30000, // 30 seconds
     });
 
     // Add request interceptor for authentication and LLM key
@@ -146,7 +148,36 @@ export class AIPartnerUpFlowClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        console.error('API Error:', error);
+        // Enhanced error logging
+        if (error.code === 'ECONNABORTED') {
+          console.error('API Request Timeout:', {
+            url: error.config?.url,
+            baseURL: this.baseURL,
+            message: 'Request timed out after 30 seconds',
+          });
+        } else if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+          console.error('API Network Error:', {
+            url: error.config?.url,
+            baseURL: this.baseURL,
+            message: 'Network request failed. Please check:',
+            checks: [
+              '1. Is the API server running?',
+              `2. Is the API URL correct? (${this.baseURL})`,
+              '3. Are there CORS issues?',
+              '4. Is the network connection working?',
+            ],
+          });
+        } else if (error.response) {
+          // Server responded with error status
+          console.error('API Error Response:', {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            url: error.config?.url,
+            data: error.response.data,
+          });
+        } else {
+          console.error('API Error:', error);
+        }
         return Promise.reject(error);
       }
     );
@@ -169,9 +200,24 @@ export class AIPartnerUpFlowClient {
       
       return response.data.result as T;
     } catch (error: any) {
+      // Handle network errors with more descriptive messages
+      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        const errorMessage = `Network Error: Unable to connect to API server at ${this.baseURL}${endpoint}. ` +
+          `Please ensure the API server is running and accessible.`;
+        throw new Error(errorMessage);
+      }
+      
+      // Handle timeout errors
+      if (error.code === 'ECONNABORTED') {
+        throw new Error(`Request timeout: The API server at ${this.baseURL}${endpoint} did not respond within 30 seconds.`);
+      }
+      
+      // Handle RPC errors
       if (error.response?.data?.error) {
         throw new Error(error.response.data.error.message || 'RPC Error');
       }
+      
+      // Re-throw other errors
       throw error;
     }
   }
