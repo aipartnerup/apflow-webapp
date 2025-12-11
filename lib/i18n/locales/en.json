@@ -87,7 +87,13 @@
     "apiUrlPlaceholder": "http://localhost:8000",
     "authentication": "Authentication",
     "authToken": "Authentication Token",
-    "saveSettings": "Save Settings"
+    "authTokenPlaceholder": "Enter JWT token (optional)",
+    "authTokenHelp": "For standard servers, a JWT token is required. For demo servers, authentication is handled automatically via cookies.",
+    "saveSettings": "Save Settings",
+    "autoLoginEnabled": "Auto Login Enabled",
+    "autoLoginMessage": "Authentication is handled automatically via browser cookies. No manual configuration needed.",
+    "autoLoginBadge": "Auto Login Active",
+    "authRequired": "Please contact your administrator for access credentials."
   },
   "errors": {
     "apiError": "API Error",

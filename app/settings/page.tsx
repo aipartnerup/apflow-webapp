@@ -4,13 +4,17 @@
  * General Settings Page
  * 
  * Configure API settings and authentication
+ * Behavior controlled by environment variables:
+ * - NEXT_PUBLIC_SHOW_AUTH_SETTINGS: Show/hide auth token settings
+ * - NEXT_PUBLIC_AUTO_LOGIN_PATH: Path to auto-login endpoint (e.g., /auth/auto-login)
  */
 
-import { Container, Title, Card, Stack, TextInput, Button } from '@mantine/core';
+import { Container, Title, Card, Stack, TextInput, Button, Text, Alert, Badge } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '@mantine/notifications';
 import { useEffect } from 'react';
+import { useAutoLogin } from '@/lib/hooks/useAutoLogin';
 
 interface SettingsFormValues {
   apiUrl: string;
@@ -19,6 +23,12 @@ interface SettingsFormValues {
 
 export default function SettingsPage() {
   const { t } = useTranslation();
+
+  // Read environment variables (with defaults)
+  const showAuthSettings = process.env.NEXT_PUBLIC_SHOW_AUTH_SETTINGS !== 'false';
+  // Use useAutoLogin hook to get auto-login status (includes verification)
+  const autoLoginStatus = useAutoLogin();
+  const autoLoginEnabled = autoLoginStatus.enabled;
 
   const form = useForm<SettingsFormValues>({
     initialValues: {
@@ -66,6 +76,7 @@ export default function SettingsPage() {
       <Card shadow="sm" padding="lg" radius="md" withBorder>
         <form onSubmit={form.onSubmit(handleSubmit)}>
           <Stack gap="md">
+            {/* API URL Configuration */}
             <div>
               <Title order={3} mb="md">{t('settings.api')}</Title>
               <TextInput
@@ -75,14 +86,50 @@ export default function SettingsPage() {
               />
             </div>
 
+            {/* Authentication Section */}
             <div>
               <Title order={3} mb="md">{t('settings.authentication')}</Title>
-              <TextInput
-                label={t('settings.authToken')}
-                placeholder="Enter JWT token (optional)"
-                type="password"
-                {...form.getInputProps('authToken')}
-              />
+              
+              {/* Auto-login enabled: Show friendly message */}
+              {autoLoginEnabled && (
+                <>
+                  <Alert color="green" mb="md">
+                    <Text size="sm" fw={500} mb="xs">
+                      {t('settings.autoLoginEnabled')}
+                    </Text>
+                    <Text size="sm">
+                      {t('settings.autoLoginMessage')}
+                    </Text>
+                  </Alert>
+                  <Badge color="green" variant="light">
+                    {t('settings.autoLoginBadge')}
+                  </Badge>
+                </>
+              )}
+
+              {/* Show auth settings: Developer mode */}
+              {showAuthSettings && !autoLoginEnabled && (
+                <>
+                  <TextInput
+                    label={t('settings.authToken')}
+                    placeholder={t('settings.authTokenPlaceholder')}
+                    type="password"
+                    {...form.getInputProps('authToken')}
+                  />
+                  <Text size="sm" c="dimmed" mt="xs">
+                    {t('settings.authTokenHelp')}
+                  </Text>
+                </>
+              )}
+
+              {/* Hide auth settings: User mode */}
+              {!showAuthSettings && !autoLoginEnabled && (
+                <Alert color="yellow">
+                  <Text size="sm">
+                    {t('settings.authRequired')}
+                  </Text>
+                </Alert>
+              )}
             </div>
 
             <Button type="submit" mt="md">

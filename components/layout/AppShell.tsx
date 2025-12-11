@@ -9,6 +9,8 @@
 import { AppShell as MantineAppShell, Burger } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { AppNavbar } from './Navbar';
+import { useAutoLogin } from '@/lib/hooks/useAutoLogin';
+import { useEffect } from 'react';
 
 interface AppShellWrapperProps {
   children: React.ReactNode;
@@ -17,6 +19,19 @@ interface AppShellWrapperProps {
 export function AppShellWrapper({ children }: AppShellWrapperProps) {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [desktopOpened, { toggle: toggleDesktop }] = useDisclosure(true);
+  
+  // Trigger auto-login detection on mount
+  const autoLoginStatus = useAutoLogin();
+  
+  useEffect(() => {
+    // Auto-login detection runs automatically via useAutoLogin hook
+    // The status can be used for future features like showing notifications
+    if (autoLoginStatus.enabled && autoLoginStatus.verified) {
+      // Auto-login is enabled and verified
+      // Future: Could show a notification or update UI state here
+      console.debug('Auto-login enabled and verified');
+    }
+  }, [autoLoginStatus]);
 
   return (
     <MantineAppShell

@@ -67,6 +67,26 @@ export default function TaskListPage() {
     },
   });
 
+  // Initialize demo tasks mutation
+  const initDemoTasksMutation = useMutation({
+    mutationFn: () => apiClient.initDemoTasks(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      notifications.show({
+        title: 'Success',
+        message: data.message || `Demo tasks initialized successfully. Created ${data.created_count} tasks.`,
+        color: 'green',
+      });
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to initialize demo tasks',
+        color: 'red',
+      });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (taskId: string) => apiClient.deleteTask(taskId),
     onSuccess: () => {
@@ -401,12 +421,27 @@ export default function TaskListPage() {
       ) : filteredTasks.length === 0 ? (
         <Stack gap="md" align="center" py="xl">
           <Text c="dimmed" size="lg">{t('tasks.noTasks')}</Text>
+          <Stack gap="sm" align="center" style={{ maxWidth: 500 }}>
+            <Alert icon={<IconInfoCircle size={16} />} color="blue" title="Get Started with Demo Tasks">
+              Initialize demo tasks to get started. This will create sample tasks demonstrating various features that you can run directly.
+            </Alert>
+            <Group>
+              <Button
+                leftSection={<IconDatabase size={16} />}
+                onClick={() => initDemoTasksMutation.mutate()}
+                loading={initDemoTasksMutation.isPending}
+                variant="filled"
+              >
+                Initialize Demo Tasks
+              </Button>
+            </Group>
+          </Stack>
           {examplesStatus?.available && (
             <Stack gap="sm" align="center" style={{ maxWidth: 500 }}>
               <Alert icon={<IconInfoCircle size={16} />} color="blue" title="Initialize Example Data">
                 {examplesStatus.initialized
                   ? 'Example tasks are already initialized. You can force re-initialization if needed.'
-                  : 'Initialize example tasks to get started. This will create sample tasks demonstrating various features.'}
+                  : 'Alternatively, initialize example tasks to get started. This will create sample tasks demonstrating various features.'}
               </Alert>
               <Group>
                 <Button

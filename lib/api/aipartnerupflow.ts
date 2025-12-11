@@ -112,14 +112,20 @@ export class AIPartnerUpFlowClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      // Enable credentials (cookies) for cross-origin requests
+      // This allows demo server's cookie-based authentication to work automatically
+      withCredentials: true,
     });
 
     // Add request interceptor for authentication and LLM key
+    // Only add Authorization header if token exists in localStorage
+    // If no token, let browser cookies work automatically (demo middleware will add Authorization header)
     this.client.interceptors.request.use((config) => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      // If no token, don't add Authorization header - let demo server's cookie middleware handle it
       
       // Add LLM API key from localStorage if available (request header method)
       // Format: provider:key (e.g., "openai:sk-xxx...") or just key (backward compatible)
@@ -376,10 +382,12 @@ export class AIPartnerUpFlowClient {
       const allHeaders = { ...headers, ...authHeaders };
       
       // Use fetch for SSE streaming
+      // Include credentials to send cookies (needed for demo server's cookie-based auth)
       const response = await fetch(`${this.baseURL}/tasks`, {
         method: 'POST',
         headers: allHeaders,
         body: JSON.stringify(request),
+        credentials: 'include', // Send cookies for cross-origin requests
       });
       
       if (!response.ok) {
@@ -713,6 +721,37 @@ export class AIPartnerUpFlowClient {
       'examples.status',
       {}
     );
+  }
+
+  // Demo Tasks Management Methods
+
+  /**
+   * Initialize demo tasks for current user
+   * 
+   * Creates demo tasks for the current user (user_id extracted from JWT/cookie automatically).
+   * The created tasks will appear in the normal task list via standard API.
+   */
+  async initDemoTasks(): Promise<{
+    success: boolean;
+    created_count: number;
+    task_ids: string[];
+    message: string;
+  }> {
+    try {
+      const response = await this.client.post<{
+        success: boolean;
+        created_count: number;
+        task_ids: string[];
+        message: string;
+      }>('/api/demo/tasks/init');
+      
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.data) {
+        throw new Error(error.response.data.message || error.response.data.error || 'Failed to initialize demo tasks');
+      }
+      throw error;
+    }
   }
 }
 
