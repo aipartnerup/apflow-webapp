@@ -60,6 +60,18 @@ export interface CreateTaskResponse {
   task_count: number;
 }
 
+export interface GenerateTaskResponse {
+  tasks: Task[];
+  count: number;
+  message: string;
+  quota_info?: {
+    total_used?: number;
+    total_limit?: number | null;
+    llm_used?: number;
+    llm_limit?: number | null;
+  };
+}
+
 export interface RunningTask {
   id: string;
   name: string;
@@ -191,15 +203,22 @@ export class AIPartnerUpFlowClient {
           const status = error.response.status;
           const method = error?.config?.method?.toUpperCase() || 'UNKNOWN';
           
-          console.group('❌ API Error Response');
-          console.error('Status:', status);
-          console.error('Status Text:', error.response.statusText);
-          console.error('Method:', method);
-          console.error('URL:', fullUrl);
-          console.error('Response Data:', error.response.data);
+          // Check if this is a JSON-RPC error response (has error field)
+          // If so, we'll handle it in the RPC error handling section below
+          const isRpcError = error.response.data?.error && error.response.data?.jsonrpc === '2.0';
           
-          // Special handling for 401 errors
-          if (status === 401) {
+          if (!isRpcError) {
+            // Only log non-RPC errors to console
+            console.group('❌ API Error Response');
+            console.error('Status:', status);
+            console.error('Status Text:', error.response.statusText);
+            console.error('Method:', method);
+            console.error('URL:', fullUrl);
+            console.error('Response Data:', error.response.data);
+          }
+          
+          // Special handling for 401 errors (only for non-RPC errors)
+          if (!isRpcError && status === 401) {
             console.error('--- Authentication Error ---');
             if (method === 'OPTIONS') {
               console.error('⚠️ CORS Preflight Request Failed!');
@@ -212,19 +231,21 @@ export class AIPartnerUpFlowClient {
               console.error('2. Missing or invalid authentication cookie');
               console.error('3. Token expired');
               console.error('4. Server authentication middleware misconfigured');
-              const hasToken = typeof window !== 'undefined' && localStorage.getItem('auth_token');
+              const hasToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
               console.error('Token in localStorage:', hasToken ? 'Present' : 'Missing');
             }
           }
           
           // Special handling for CORS errors (status 0 or no response)
-          if (status === 0 || !error.response) {
+          if (!isRpcError && (status === 0 || !error.response)) {
             console.error('--- Possible CORS Issue ---');
             console.error('This might be a CORS (Cross-Origin Resource Sharing) problem.');
             console.error('The server may not be configured to allow requests from this origin.');
           }
           
-          console.groupEnd();
+          if (!isRpcError) {
+            console.groupEnd();
+          }
         } else {
           // Other errors
           console.group('⚠️ API Error (Other)');
@@ -252,7 +273,14 @@ export class AIPartnerUpFlowClient {
       const response = await this.client.post<JsonRpcResponse<T>>(endpoint, request);
       
       if (response.data.error) {
-        throw new Error(response.data.error.message || 'RPC Error');
+        // Extract error message, prefer data field if available (contains detailed error)
+        const errorMessage = response.data.error.data || response.data.error.message || 'RPC Error';
+        const error = new Error(String(errorMessage));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (error as any).code = response.data.error.code;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (error as any).rpcError = response.data.error;
+        throw error;
       }
       
       return response.data.result as T;
@@ -316,7 +344,14 @@ export class AIPartnerUpFlowClient {
       
       // Handle RPC errors
       if (error.response?.data?.error) {
-        throw new Error(error.response.data.error.message || 'RPC Error');
+        // Extract error message, prefer data field if available (contains detailed error)
+        const errorMessage = error.response.data.error.data || error.response.data.error.message || 'RPC Error';
+        const rpcError = new Error(String(errorMessage));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (rpcError as any).code = error.response.data.error.code;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (rpcError as any).rpcError = error.response.data.error;
+        throw rpcError;
       }
       
       // Re-throw other errors, but wrap them if they don't have a message
@@ -330,6 +365,16 @@ export class AIPartnerUpFlowClient {
 
 
   // Task Management Methods
+
+  /**
+   * Generate a task from natural language description using LLM
+   */
+  async generateTask(description: string): Promise<GenerateTaskResponse> {
+    if (!description || description.trim() === '') {
+      throw new Error('Description is required');
+    }
+    return this.rpcRequest<GenerateTaskResponse>('/tasks', 'tasks.generate', { requirement: description.trim() });
+  }
 
   /**
    * Create one or more tasks and execute them

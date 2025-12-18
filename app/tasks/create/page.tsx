@@ -9,11 +9,11 @@
 import { Container, Title, Button, Card, Stack, TextInput, Select, Textarea, Group, SegmentedControl, Alert } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient, Task } from '@/lib/api/aipartnerupflow';
+import { apiClient, Task, GenerateTaskResponse } from '@/lib/api/aipartnerupflow';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft, IconCode, IconForms, IconAlertCircle } from '@tabler/icons-react';
+import { IconArrowLeft, IconCode, IconForms, IconAlertCircle, IconSparkles } from '@tabler/icons-react';
 import { useState } from 'react';
 
 interface TaskFormValues {
@@ -28,6 +28,8 @@ interface TaskFormValues {
   user_id?: string;
   id?: string;
   taskJson: string;  // For advanced mode
+  generateDescription: string;  // For generate mode
+  generatedTaskJson: string;  // For generate mode - generated and editable JSON
 }
 
 // Common executors
@@ -43,7 +45,8 @@ export default function CreateTaskPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [mode, setMode] = useState<'simple' | 'advanced'>('simple');
+  const [mode, setMode] = useState<'simple' | 'advanced' | 'generate'>('simple');
+  const [generateStep, setGenerateStep] = useState<'input' | 'review'>('input');
 
   const form = useForm<TaskFormValues>({
     initialValues: {
@@ -71,14 +74,16 @@ export default function CreateTaskPage() {
           method: ''
         }
       }, null, 2),
+      generateDescription: '',
+      generatedTaskJson: '',
     },
     validate: {
-      name: (value, values) => {
-        if (mode === 'advanced') return null;
+      name: (value) => {
+        if (mode === 'advanced' || mode === 'generate') return null;
         return value.length < 1 ? 'Task name is required' : null;
       },
-      executor: (value, values) => {
-        if (mode === 'advanced') return null;
+      executor: (value) => {
+        if (mode === 'advanced' || mode === 'generate') return null;
         return value.length < 1 ? 'Executor is required' : null;
       },
       schemas: (value) => {
@@ -90,8 +95,8 @@ export default function CreateTaskPage() {
           return 'Invalid JSON format';
         }
       },
-      inputs: (value, values) => {
-        if (mode === 'advanced') return null;
+      inputs: (value) => {
+        if (mode === 'advanced' || mode === 'generate') return null;
         try {
           JSON.parse(value);
           return null;
@@ -120,8 +125,8 @@ export default function CreateTaskPage() {
           return 'Invalid JSON format';
         }
       },
-      taskJson: (value, values) => {
-        if (mode === 'simple') return null;
+      taskJson: (value) => {
+        if (mode === 'simple' || mode === 'generate') return null;
         if (!value || value.trim() === '') {
           return 'Task JSON is required in advanced mode';
         }
@@ -131,20 +136,76 @@ export default function CreateTaskPage() {
             return 'Task JSON must include "name" field';
           }
           return null;
-        } catch (e: any) {
-          return `Invalid JSON format: ${e.message}`;
+        } catch (e) {
+          const error = e as Error;
+          return `Invalid JSON format: ${error.message}`;
         }
+      },
+      generatedTaskJson: (value) => {
+        if (mode !== 'generate') return null;
+        if (generateStep === 'input') return null; // No validation needed at input step
+        if (!value || value.trim() === '') {
+          return 'Generated task JSON is required';
+        }
+        try {
+          const parsed = JSON.parse(value);
+          if (!parsed.name) {
+            return 'Task JSON must include "name" field';
+          }
+          return null;
+        } catch (e) {
+          const error = e as Error;
+          return `Invalid JSON format: ${error.message}`;
+        }
+      },
+      generateDescription: (value) => {
+        if (mode !== 'generate') return null;
+        if (generateStep === 'review') return null; // No validation needed at review step
+        if (!value || value.trim() === '') {
+          return 'Description is required to generate task';
+        }
+        return null;
       },
     },
   });
 
+  const generateMutation = useMutation({
+    mutationFn: (description: string) => apiClient.generateTask(description),
+    onSuccess: (response: GenerateTaskResponse) => {
+      // Format the generated tasks as JSON string
+      // If multiple tasks, show the full response; if single task, show just the task
+      const taskJson = response.tasks.length === 1 
+        ? JSON.stringify(response.tasks[0], null, 2)
+        : JSON.stringify(response.tasks, null, 2);
+      form.setFieldValue('generatedTaskJson', taskJson);
+      setGenerateStep('review');
+      notifications.show({
+        title: t('common.success'),
+        message: response.message || `Successfully generated ${response.count} task(s). Please review and edit if needed.`,
+        color: 'green',
+      });
+    },
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate task';
+      notifications.show({
+        title: t('common.error'),
+        message: errorMessage,
+        color: 'red',
+      });
+    },
+  });
+
   const createMutation = useMutation({
-    mutationFn: (task: Task) => apiClient.createTasks(task),
+    mutationFn: (task: Task | Task[]) => {
+      // Create tasks (save only, execution happens on task detail page)
+      return apiClient.createTasks(task);
+    },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       
       // Handle both response formats: CreateTaskResponse or Task object
-      const taskId = (data as any).root_task_id || (data as any).id || (data as Task).id;
+      const taskId = ('root_task_id' in data ? data.root_task_id : undefined) || 
+                     ('id' in data && typeof (data as { id?: string }).id === 'string' ? (data as { id: string }).id : undefined);
       
       notifications.show({
         title: t('common.success'),
@@ -162,20 +223,100 @@ export default function CreateTaskPage() {
         router.push('/tasks');
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error ? error.message : t('errors.apiError');
       notifications.show({
         title: t('common.error'),
-        message: error.message || t('errors.apiError'),
+        message: errorMessage,
         color: 'red',
       });
     },
   });
 
+  const handleGenerate = () => {
+    const description = form.values.generateDescription;
+    if (!description || description.trim() === '') {
+      notifications.show({
+        title: t('common.error'),
+        message: 'Please enter a task description',
+        color: 'red',
+      });
+      return;
+    }
+    generateMutation.mutate(description);
+  };
+
+  const handleSaveGenerated = () => {
+    try {
+      const generatedJson = form.values.generatedTaskJson;
+      if (!generatedJson || generatedJson.trim() === '') {
+        notifications.show({
+          title: t('common.error'),
+          message: 'Generated task JSON is required',
+          color: 'red',
+        });
+        return;
+      }
+
+      const parsed = JSON.parse(generatedJson);
+      
+      // Handle both single task and array of tasks
+      let tasks: Task[];
+      if (Array.isArray(parsed)) {
+        tasks = parsed;
+      } else {
+        tasks = [parsed];
+      }
+      
+      // Validate and process each task
+      const validatedTasks = tasks.map((task, index) => {
+        // Ensure required fields
+        if (!task.name) {
+          throw new Error(`Task ${index + 1}: Task name is required`);
+        }
+        
+        // Auto-generate id if not provided
+        if (!task.id) {
+          task.id = `task-${Date.now()}-${index}`;
+        }
+        
+        return task;
+      });
+
+      // Create tasks (apiClient.createTasks accepts Task[] or Task)
+      // Save only, execution happens on task detail page
+      createMutation.mutate(validatedTasks.length === 1 ? validatedTasks[0] : validatedTasks);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Invalid JSON format';
+      notifications.show({
+        title: t('common.error'),
+        message: errorMessage,
+        color: 'red',
+      });
+    }
+  };
+
   const handleSubmit = (values: TaskFormValues) => {
     try {
       let task: Task;
 
-      if (mode === 'advanced') {
+      if (mode === 'generate') {
+        // Generate mode: use generated task JSON
+        if (!values.generatedTaskJson || values.generatedTaskJson.trim() === '') {
+          throw new Error('Generated task JSON is required');
+        }
+        task = JSON.parse(values.generatedTaskJson);
+        
+        // Ensure required fields
+        if (!task.name) {
+          throw new Error('Task name is required');
+        }
+        
+        // Auto-generate id if not provided
+        if (!task.id) {
+          task.id = `task-${Date.now()}`;
+        }
+      } else if (mode === 'advanced') {
         // Advanced mode: parse complete JSON
         task = JSON.parse(values.taskJson);
         
@@ -225,10 +366,11 @@ export default function CreateTaskPage() {
       }
 
       createMutation.mutate(task);
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Invalid JSON format';
       notifications.show({
         title: t('common.error'),
-        message: error.message || 'Invalid JSON format',
+        message: errorMessage,
         color: 'red',
       });
     }
@@ -242,7 +384,7 @@ export default function CreateTaskPage() {
       const params = form.values.params ? JSON.parse(form.values.params) : undefined;
       const dependencies = form.values.dependencies ? JSON.parse(form.values.dependencies) : undefined;
 
-      const taskJson: any = {
+      const taskJson: Record<string, unknown> = {
         id: form.values.id || `task-${Date.now()}`,
         name: form.values.name,
         priority: form.values.priority,
@@ -256,7 +398,7 @@ export default function CreateTaskPage() {
       if (params) taskJson.params = params;
 
       form.setFieldValue('taskJson', JSON.stringify(taskJson, null, 2));
-    } catch (e) {
+    } catch {
       // Ignore sync errors
     }
   };
@@ -282,9 +424,11 @@ export default function CreateTaskPage() {
               <SegmentedControl
                 value={mode}
                 onChange={(value) => {
-                  setMode(value as 'simple' | 'advanced');
+                  setMode(value as 'simple' | 'advanced' | 'generate');
                   if (value === 'simple') {
                     syncToJson();
+                  } else if (value === 'generate') {
+                    setGenerateStep('input');
                   }
                 }}
                 data={[
@@ -306,11 +450,82 @@ export default function CreateTaskPage() {
                       </Group>
                     ),
                   },
+                  {
+                    value: 'generate',
+                    label: (
+                      <Group gap={8}>
+                        <IconSparkles size={16} />
+                        <span>Generate Mode (LLM)</span>
+                      </Group>
+                    ),
+                  },
                 ]}
               />
             </Group>
 
-            {mode === 'advanced' ? (
+            {mode === 'generate' ? (
+              // Generate Mode: LLM Generation
+              <>
+                <Alert icon={<IconAlertCircle size={16} />} color="blue" title="Generate Mode (LLM)">
+                  Describe your task in natural language, and AI will generate the task configuration for you. You can review and edit the generated JSON before saving.
+                </Alert>
+                {generateStep === 'input' ? (
+                  <>
+                    <Textarea
+                      label="Task Description"
+                      placeholder="e.g., Create a task to check CPU usage every 5 minutes and send an alert if usage exceeds 80%"
+                      description="Describe what you want the task to do in natural language"
+                      minRows={6}
+                      required
+                      {...form.getInputProps('generateDescription')}
+                    />
+                    <Group justify="flex-end">
+                      <Button
+                        onClick={handleGenerate}
+                        loading={generateMutation.isPending}
+                        disabled={!form.values.generateDescription || form.values.generateDescription.trim() === ''}
+                      >
+                        Generate Task
+                      </Button>
+                    </Group>
+                  </>
+                ) : (
+                  <>
+                    <Textarea
+                      label="Generated Task JSON"
+                      description="Review and edit the generated task configuration. Click 'Save Task' when ready."
+                      minRows={40}
+                      autosize
+                      resize="vertical"
+                      {...form.getInputProps('generatedTaskJson')}
+                    />
+                    <Group justify="space-between">
+                      <Button
+                        variant="subtle"
+                        onClick={() => {
+                          setGenerateStep('input');
+                          form.setFieldValue('generatedTaskJson', '');
+                        }}
+                      >
+                        Back to Description
+                      </Button>
+                      <Group>
+                        <Button variant="subtle" onClick={() => router.back()}>
+                          {t('common.cancel')}
+                        </Button>
+                        <Button
+                          onClick={handleSaveGenerated}
+                          loading={createMutation.isPending}
+                          disabled={!form.values.generatedTaskJson || form.values.generatedTaskJson.trim() === ''}
+                        >
+                          {t('taskForm.create')}
+                        </Button>
+                      </Group>
+                    </Group>
+                  </>
+                )}
+              </>
+            ) : mode === 'advanced' ? (
               // Advanced Mode: Direct JSON Editing
               <>
                 <Alert icon={<IconAlertCircle size={16} />} color="blue" title="Advanced Mode">
@@ -414,14 +629,18 @@ export default function CreateTaskPage() {
               </>
             )}
 
-            <Group justify="flex-end" mt="md">
-              <Button variant="subtle" onClick={() => router.back()}>
-                {t('common.cancel')}
-              </Button>
-              <Button type="submit" loading={createMutation.isPending}>
-                {t('taskForm.createAndExecute')}
-              </Button>
-            </Group>
+            {/* Only show form submit buttons in simple and advanced modes */}
+            {/* Generate mode has its own buttons in the generate section */}
+            {mode !== 'generate' && (
+              <Group justify="flex-end" mt="md">
+                <Button variant="subtle" onClick={() => router.back()}>
+                  {t('common.cancel')}
+                </Button>
+                <Button type="submit" loading={createMutation.isPending}>
+                  {t('taskForm.create')}
+                </Button>
+              </Group>
+            )}
           </Stack>
         </form>
       </Card>

@@ -34,7 +34,7 @@ export default function RootLayout({
         <QueryProvider>
           <I18nProvider>
             <MantineProvider theme={themeConfig} defaultColorScheme="auto">
-              <Notifications />
+              <Notifications position="top-right" />
               <AppShellWrapper>
                 {children}
               </AppShellWrapper>

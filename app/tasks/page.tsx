@@ -26,6 +26,7 @@ export default function TaskListPage() {
   const [viewMode, setViewMode] = useState<'root' | 'all'>('root');
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [childrenCache, setChildrenCache] = useState<Record<string, Task[]>>({});
+  const [executingTaskId, setExecutingTaskId] = useState<string | null>(null);
   
   // Ref to store SSE cleanup functions (one per task)
   const sseCleanupRefs = useRef<Map<string, () => void>>(new Map());
@@ -99,6 +100,8 @@ export default function TaskListPage() {
 
   const executeMutation = useMutation({
     mutationFn: (taskId: string) => {
+      // Set executing task ID when execution starts
+      setExecutingTaskId(taskId);
       return apiClient.executeTask(
         taskId,
         true, // Enable streaming
@@ -107,8 +110,9 @@ export default function TaskListPage() {
           queryClient.invalidateQueries({ queryKey: ['tasks'] });
           queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
 
-          // Show notification on completion or failure
+          // Show notification on completion or failure and clear executing state
           if (event.final || event.type === 'stream_end') {
+            setExecutingTaskId(null);
             if (event.status === 'completed') {
               notifications.show({
                 title: 'Task Completed',
@@ -138,6 +142,8 @@ export default function TaskListPage() {
       queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
     },
     onError: (error: any) => {
+      // Clear executing state on error
+      setExecutingTaskId(null);
       notifications.show({
         title: t('common.error'),
         message: error.message || 'Failed to execute task',
@@ -207,8 +213,29 @@ export default function TaskListPage() {
     task.id.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
 
+  // Helper function to check if a task should show loading/running state
+  const isTaskExecuting = (task: Task, parentId?: string): boolean => {
+    // Check if this task is the one being executed
+    if (task.id === executingTaskId) {
+      return true;
+    }
+    // Check if task status is in_progress
+    if (task.status === 'in_progress') {
+      return true;
+    }
+    // Check if parent is executing (for child tasks)
+    // Check both the passed parentId and task.parent_id
+    if (parentId && parentId === executingTaskId) {
+      return true;
+    }
+    if (task.parent_id && task.parent_id === executingTaskId) {
+      return true;
+    }
+    return false;
+  };
+
   // Render task row recursively (supports nested children)
-  const renderTaskRow = (task: Task, level: number = 0) => {
+  const renderTaskRow = (task: Task, level: number = 0, parentId?: string) => {
     const isExpanded = expandedTasks.has(task.id);
     const children = childrenCache[task.id] || [];
     const isRoot = level === 0;
@@ -304,7 +331,7 @@ export default function TaskListPage() {
                     variant="subtle"
                     color="blue"
                     onClick={() => executeMutation.mutate(task.id)}
-                    loading={executeMutation.isPending}
+                    loading={isTaskExecuting(task, parentId)}
                   >
                     <IconPlayerPlay size={16} />
                   </ActionIcon>
@@ -332,7 +359,7 @@ export default function TaskListPage() {
             </Group>
           </Table.Td>
         </Table.Tr>
-        {isExpanded && children.map((child) => renderTaskRow(child, level + 1))}
+        {isExpanded && children.map((child) => renderTaskRow(child, level + 1, task.id))}
       </Fragment>
     );
   };
