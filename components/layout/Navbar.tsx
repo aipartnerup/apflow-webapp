@@ -63,9 +63,9 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
   const isActive = (path: string) => pathname === path;
 
   return (
-    <AppShell.Navbar p="md">
+    <AppShell.Navbar p="xs" style={{ overflowY: 'auto' }}>
       <AppShell.Section>
-        <Group p="md" gap="sm">
+        <Group p="xs" gap="xs">
           <Image
             src="/logo.svg"
             alt="AIPartnerUpFlow Logo"
@@ -84,7 +84,7 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
         </Group>
       </AppShell.Section>
 
-      <AppShell.Section grow mt="md">
+      <AppShell.Section grow mt={0}>
         <NavLink
           label={t('nav.dashboard')}
           leftSection={<IconDashboard size={18} />}
@@ -93,14 +93,14 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
             router.push('/');
             onNavigate?.();
           }}
-          style={{ marginBottom: 'var(--mantine-spacing-xs)' }}
+          style={{ marginBottom: 2 }}
         />
 
         <NavLink
           label={t('nav.taskManagement')}
           leftSection={<IconList size={18} />}
           rightSection={<IconChevronRight size={16} />}
-          style={{ marginBottom: 'var(--mantine-spacing-xs)' }}
+          style={{ marginBottom: 2 }}
         >
           <NavLink
             label={t('nav.taskList')}
@@ -137,7 +137,7 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
           label={t('nav.settings')}
           leftSection={<IconSettings size={18} />}
           rightSection={<IconChevronRight size={16} />}
-          style={{ marginBottom: 'var(--mantine-spacing-xs)' }}
+          style={{ marginBottom: 2 }}
         >
           <NavLink
             label={t('nav.apiSettings')}
@@ -161,8 +161,8 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
       </AppShell.Section>
 
       <AppShell.Section>
-        <Divider my="md" />
-        <Stack p="md" gap="sm">
+        <Divider my={4} />
+        <Stack p="xs" gap={4}>
           <NavLink
             label={mounted && colorScheme === 'dark' ? t('common.lightMode') : t('common.darkMode')}
             leftSection={mounted && colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
@@ -182,7 +182,7 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
             ]}
             style={{ width: '100%' }}
           />
-          <Divider my="xs" />
+          <Divider my={4} />
           <Group gap="xs" p="xs" style={{ borderRadius: 'var(--mantine-radius-md)' }}>
             <IconTestPipe size={18} style={{ flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -199,7 +199,7 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
               size="sm"
             />
           </Group>
-          <Divider my="xs" />
+          <Divider my={4} />
           <NavLink
             label="WebApp"
             leftSection={<IconBrandGithub size={18} />}
@@ -210,6 +210,7 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
             style={{ 
               cursor: 'pointer',
               borderRadius: 'var(--mantine-radius-md)',
+              marginTop: 0,
             }}
           />
           <NavLink
@@ -222,6 +223,7 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
             style={{ 
               cursor: 'pointer',
               borderRadius: 'var(--mantine-radius-md)',
+              marginTop: 0,
             }}
           />
         </Stack>
