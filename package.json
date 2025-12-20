@@ -7,6 +7,8 @@
     "dev.env": "dotenv -e .env -- next dev",
     "build": "next build",
     "build.env": "dotenv -e .env -- next build",
+    "export": "next build",
+    "export.env": "dotenv -e .env -- next build",
     "start": "next start",
     "start.env": "dotenv -e .env -- next start",
     "lint": "eslint"

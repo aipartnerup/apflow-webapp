@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 import { IconList, IconCheck, IconX, IconClock, IconDatabase, IconInfoCircle } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
+import { useEffect } from 'react';
 
 export default function DashboardPage() {
   const { t } = useTranslation();
@@ -39,16 +40,19 @@ export default function DashboardPage() {
   });
 
   // Check demo init status
-  const { data: demoInitStatus, isLoading: isLoadingDemoStatus } = useQuery({
+  const { data: demoInitStatus, isLoading: isLoadingDemoStatus, error: demoStatusError } = useQuery({
     queryKey: ['demo-init-status'],
     queryFn: () => apiClient.checkDemoInitStatus(),
     retry: false,
     refetchOnWindowFocus: false,
-    // Don't show error if API fails, just don't show the button
-    onError: (error) => {
-      console.debug('Failed to check demo init status:', error);
-    },
   });
+
+  // Don't show error if API fails, just don't show the button
+  useEffect(() => {
+    if (demoStatusError) {
+      console.debug('Failed to check demo init status:', demoStatusError);
+    }
+  }, [demoStatusError]);
 
   // Initialize demo tasks mutation
   const initDemoTasksMutation = useMutation({

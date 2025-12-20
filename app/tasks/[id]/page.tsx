@@ -12,7 +12,7 @@ import { apiClient, Task } from '@/lib/api/aipartnerupflow';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft, IconTree, IconInfoCircle, IconCode, IconFileText, IconPlayerPlay } from '@tabler/icons-react';
+import { IconArrowLeft, IconTree, IconInfoCircle, IconCode, IconFileText, IconPlayerPlay, IconDatabase } from '@tabler/icons-react';
 import { TaskTreeView } from '@/components/tasks/TaskTreeView';
 import { use, useEffect, useRef } from 'react';
 
@@ -24,6 +24,22 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   // Handle params which might be a Promise in Next.js 15+
   const resolvedParams = 'then' in params ? use(params) : params;
   const taskId = resolvedParams?.id || '';
+
+  // Handle placeholder route for static export
+  if (taskId === 'placeholder') {
+    return (
+      <Container size="xl">
+        <Text c="dimmed" size="lg" ta="center" mt="xl">
+          Please select a task from the task list to view its details.
+        </Text>
+        <Group justify="center" mt="md">
+          <Button onClick={() => router.push('/tasks')}>
+            Go to Task List
+          </Button>
+        </Group>
+      </Container>
+    );
+  }
 
   const { data: task, isLoading } = useQuery({
     queryKey: ['task', taskId],
@@ -174,6 +190,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
           <Tabs.Tab value="result" leftSection={<IconFileText size={16} />}>
             Result
           </Tabs.Tab>
+          <Tabs.Tab value="json" leftSection={<IconDatabase size={16} />}>
+            Full Model (JSON)
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="overview" pt="md">
@@ -245,6 +264,17 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
         <Tabs.Panel value="result" pt="md">
           <Card shadow="sm" padding="lg" radius="md" withBorder>
             <Code block>{JSON.stringify(task.result || {}, null, 2)}</Code>
+          </Card>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="json" pt="md">
+          <Card shadow="sm" padding="lg" radius="md" withBorder>
+            <Text size="sm" c="dimmed" mb="md">
+              Complete task model data (all fields)
+            </Text>
+            <Code block style={{ maxHeight: '70vh', overflow: 'auto' }}>
+              {JSON.stringify(task, null, 2)}
+            </Code>
           </Card>
         </Tabs.Panel>
       </Tabs>
