@@ -217,7 +217,7 @@ export default function CreateTaskPage() {
       if (taskId) {
         // Small delay to ensure task is saved to database
         await new Promise(resolve => setTimeout(resolve, 300));
-        router.push(`/tasks/${taskId}`);
+        router.push(`/tasks?id=${taskId}`);
       } else {
         // If no ID, go to tasks list
         router.push('/tasks');

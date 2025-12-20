@@ -14,11 +14,13 @@ import { useRouter } from 'next/navigation';
 import { IconList, IconCheck, IconX, IconClock, IconDatabase, IconInfoCircle } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useEffect } from 'react';
+import { useAutoLoginContext } from '@/lib/contexts/AutoLoginContext';
 
 export default function DashboardPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isReady: autoLoginReady } = useAutoLoginContext();
 
   const { data: runningTasks, isLoading: loadingRunning } = useQuery({
     queryKey: ['running-tasks'],
@@ -39,12 +41,13 @@ export default function DashboardPage() {
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
-  // Check demo init status
+  // Check demo init status - wait for auto-login to complete before calling
   const { data: demoInitStatus, isLoading: isLoadingDemoStatus, error: demoStatusError } = useQuery({
     queryKey: ['demo-init-status'],
     queryFn: () => apiClient.checkDemoInitStatus(),
     retry: false,
     refetchOnWindowFocus: false,
+    enabled: autoLoginReady, // Only call after auto-login is ready
   });
 
   // Don't show error if API fails, just don't show the button

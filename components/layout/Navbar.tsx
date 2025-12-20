@@ -6,7 +6,7 @@
  * Left sidebar navigation with menu items, sub-menus, and bottom controls
  */
 
-import { AppShell, NavLink, Group, Text, Select, Divider, Stack } from '@mantine/core';
+import { AppShell, NavLink, Group, Text, Select, Divider, Stack, Switch } from '@mantine/core';
 import { useMantineColorScheme } from '@mantine/core';
 import {
   IconDashboard,
@@ -19,11 +19,13 @@ import {
   IconSun,
   IconMoon,
   IconBrandGithub,
+  IconTestPipe,
 } from '@tabler/icons-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { useUseDemo } from '@/lib/contexts/UseDemoContext';
 
 interface AppNavbarProps {
   onNavigate?: () => void;
@@ -34,6 +36,7 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
   const pathname = usePathname();
   const { t, i18n } = useTranslation();
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+  const { useDemo, setUseDemo } = useUseDemo();
   const [language, setLanguage] = useState(i18n.language);
   const [mounted, setMounted] = useState(false);
 
@@ -179,6 +182,23 @@ export function AppNavbar({ onNavigate }: AppNavbarProps) {
             ]}
             style={{ width: '100%' }}
           />
+          <Divider my="xs" />
+          <Group gap="xs" p="xs" style={{ borderRadius: 'var(--mantine-radius-md)' }}>
+            <IconTestPipe size={18} style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Text size="sm" fw={500} truncate>
+                Demo Mode
+              </Text>
+              <Text size="xs" c="dimmed" truncate>
+                Use demo data for execution
+              </Text>
+            </div>
+            <Switch
+              checked={useDemo}
+              onChange={(event) => setUseDemo(event.currentTarget.checked)}
+              size="sm"
+            />
+          </Group>
           <Divider my="xs" />
           <NavLink
             label="WebApp"

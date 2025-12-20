@@ -8,6 +8,8 @@ import './globals.css';
 import { AppShellWrapper } from '@/components/layout/AppShell';
 import { I18nProvider } from '@/lib/i18n/provider';
 import { QueryProvider } from '@/lib/providers/QueryProvider';
+import { UseDemoProvider } from '@/lib/contexts/UseDemoContext';
+import { AutoLoginProvider } from '@/lib/contexts/AutoLoginContext';
 import { themeConfig } from '@/lib/theme/config';
 
 const inter = Inter({ subsets: ["latin"] });
@@ -34,10 +36,14 @@ export default function RootLayout({
         <QueryProvider>
           <I18nProvider>
             <MantineProvider theme={themeConfig} defaultColorScheme="auto">
-              <Notifications position="top-right" />
-              <AppShellWrapper>
-                {children}
-              </AppShellWrapper>
+              <AutoLoginProvider>
+                <UseDemoProvider>
+                  <Notifications position="top-right" />
+                  <AppShellWrapper>
+                    {children}
+                  </AppShellWrapper>
+                </UseDemoProvider>
+              </AutoLoginProvider>
             </MantineProvider>
           </I18nProvider>
         </QueryProvider>

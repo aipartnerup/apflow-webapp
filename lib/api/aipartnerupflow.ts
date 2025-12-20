@@ -510,12 +510,14 @@ export class AIPartnerUpFlowClient {
    * @param taskId Task ID to execute
    * @param useStreaming If true, enables SSE streaming for real-time updates (default: true)
    * @param onEvent Optional callback for SSE events when useStreaming is true
+   * @param useDemo If true, uses demo mode (returns pre-computed demo data instead of actual execution)
    * @returns Execution response with root_task_id. If useStreaming=true, returns initial response and streams events via onEvent
    */
   async executeTask(
     taskId: string,
     useStreaming = true,
-    onEvent?: (event: TaskEvent) => void
+    onEvent?: (event: TaskEvent) => void,
+    useDemo?: boolean
   ): Promise<TaskExecutionResponse> {
     // First, get task details to detect provider for LLM key
     let provider: string | undefined;
@@ -528,13 +530,17 @@ export class AIPartnerUpFlowClient {
     }
     
     // Make request with LLM key formatted as provider:key if provider is detected
+    const requestParams: any = {
+      task_id: taskId,
+      use_streaming: useStreaming,
+    };
+    if (useDemo !== undefined) {
+      requestParams.use_demo = useDemo;
+    }
     const request: JsonRpcRequest = {
       jsonrpc: '2.0',
       method: 'tasks.execute',
-      params: {
-        task_id: taskId,
-        use_streaming: useStreaming,
-      },
+      params: requestParams,
       id: ++this.requestId,
     };
     

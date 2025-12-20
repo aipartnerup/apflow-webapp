@@ -80,7 +80,7 @@ export default function RunningTasksPage() {
                   <Badge color="blue" size="lg">{task.status}</Badge>
                   <ActionIcon
                     variant="subtle"
-                    onClick={() => router.push(`/tasks/${task.id}`)}
+                    onClick={() => router.push(`/tasks?id=${task.id}`)}
                   >
                     <IconEye size={16} />
                   </ActionIcon>

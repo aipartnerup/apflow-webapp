@@ -1,26 +1,35 @@
 'use client';
 
 /**
- * Task List Page
+ * Task List/Detail Page
  * 
- * Display list of all tasks with filtering and search
+ * Display list of all tasks with filtering and search, or task detail if ?id=xxx is provided
  */
 
-import { Container, Title, Button, Group, TextInput, Table, Badge, ActionIcon, Tooltip, Text, Select, Stack, Alert, useMantineColorScheme } from '@mantine/core';
+import { Container, Title, Button, Group, TextInput, Table, Badge, ActionIcon, Tooltip, Text, Select, Stack, Alert, useMantineColorScheme, Card, Code, Tabs, Progress } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, Task } from '@/lib/api/aipartnerupflow';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'next/navigation';
-import { IconPlus, IconSearch, IconEye, IconCopy, IconTrash, IconDatabase, IconInfoCircle, IconPlayerPlay, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
-import { useState, useRef, useEffect, Fragment } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { IconPlus, IconSearch, IconEye, IconCopy, IconTrash, IconDatabase, IconInfoCircle, IconPlayerPlay, IconChevronDown, IconChevronRight, IconArrowLeft, IconTree, IconCode, IconFileText, IconRefresh } from '@tabler/icons-react';
+import { useState, useRef, useEffect, Fragment, Suspense } from 'react';
 import { notifications } from '@mantine/notifications';
+import { useUseDemo } from '@/lib/contexts/UseDemoContext';
+import { useAutoLoginContext } from '@/lib/contexts/AutoLoginContext';
+import { TaskTreeView } from '@/components/tasks/TaskTreeView';
 
-export default function TaskListPage() {
+function TaskListPageContent() {
   const { t } = useTranslation();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { colorScheme } = useMantineColorScheme();
+  const { useDemo } = useUseDemo();
+  const { isReady: autoLoginReady } = useAutoLoginContext();
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Get task ID from query parameter
+  const taskId = searchParams?.get('id') || '';
 
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [viewMode, setViewMode] = useState<'root' | 'all'>('root');
@@ -40,12 +49,13 @@ export default function TaskListPage() {
     }),
   });
 
-  // Check demo init status
+  // Check demo init status - wait for auto-login to complete before calling
   const { data: demoInitStatus, isLoading: isLoadingDemoStatus, error: demoStatusError } = useQuery({
     queryKey: ['demo-init-status'],
     queryFn: () => apiClient.checkDemoInitStatus(),
     retry: false,
     refetchOnWindowFocus: false,
+    enabled: autoLoginReady, // Only call after auto-login is ready
   });
 
   // Don't show error if API fails, just don't show the button
@@ -58,9 +68,13 @@ export default function TaskListPage() {
   // Initialize demo tasks mutation
   const initDemoTasksMutation = useMutation({
     mutationFn: () => apiClient.initDemoTasks(),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      // Wait a bit for backend to update status, then refresh demo init status
+      await new Promise(resolve => setTimeout(resolve, 1000));
       queryClient.invalidateQueries({ queryKey: ['demo-init-status'] });
+      // Refetch demo init status to get updated state
+      queryClient.refetchQueries({ queryKey: ['demo-init-status'] });
       notifications.show({
         title: 'Success',
         message: data.message || `Demo tasks initialized successfully. Created ${data.created_count} tasks.`,
@@ -144,7 +158,8 @@ export default function TaskListPage() {
               });
             }
           }
-        }
+        },
+        useDemo // Pass global use_demo state
       );
     },
     onSuccess: (data) => {
@@ -229,6 +244,9 @@ export default function TaskListPage() {
     task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     task.id.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
+
+  // Check if there are any demo tasks in the task list
+  const hasDemoTasks = tasks?.some(task => task.name.startsWith('Demo:')) || false;
 
   // Helper function to check if a task should show loading/running state
   const isTaskExecuting = (task: Task, parentId?: string): boolean => {
@@ -337,7 +355,7 @@ export default function TaskListPage() {
               <Tooltip label={t('tasks.view')}>
                 <ActionIcon
                   variant="subtle"
-                  onClick={() => router.push(`/tasks/${task.id}`)}
+                  onClick={() => router.push(`/tasks?id=${task.id}`)}
                 >
                   <IconEye size={16} />
                 </ActionIcon>
@@ -381,6 +399,241 @@ export default function TaskListPage() {
     );
   };
 
+  // Task detail queries (only when taskId is provided)
+  const { data: task, isLoading: isLoadingTask } = useQuery({
+    queryKey: ['task', taskId],
+    queryFn: () => {
+      if (!taskId) {
+        throw new Error('Task ID is required');
+      }
+      return apiClient.getTask(taskId);
+    },
+    enabled: !!taskId,
+  });
+
+  const { data: taskTree } = useQuery({
+    queryKey: ['task-tree', taskId],
+    queryFn: () => apiClient.getTaskTree(taskId),
+    enabled: !!task && !!taskId,
+  });
+
+  // Task detail execute mutation
+  const executeDetailMutation = useMutation({
+    mutationFn: (taskId: string) => {
+      return apiClient.executeTask(
+        taskId,
+        true, // Enable streaming
+        (event: any) => {
+          // Handle SSE events in real-time
+          queryClient.setQueryData(['task', taskId], (oldData: Task | undefined) => {
+            if (!oldData) return oldData;
+            return {
+              ...oldData,
+              status: event.status || oldData.status,
+              progress: event.progress !== undefined ? event.progress : oldData.progress,
+              result: event.result !== undefined ? event.result : oldData.result,
+              error: event.error || oldData.error,
+            };
+          });
+
+          // Invalidate queries to refresh tree view
+          queryClient.invalidateQueries({ queryKey: ['task-tree', taskId] });
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
+
+          // Show notification on completion or failure
+          if (event.final || event.type === 'stream_end') {
+            if (event.status === 'completed') {
+              notifications.show({
+                title: 'Task Completed',
+                message: 'Task execution completed successfully',
+                color: 'green',
+              });
+            } else if (event.status === 'failed') {
+              notifications.show({
+                title: 'Task Failed',
+                message: event.error || 'Task execution failed',
+                color: 'red',
+              });
+            }
+          }
+        },
+        useDemo // Pass global use_demo state
+      );
+    },
+    onSuccess: (data) => {
+      notifications.show({
+        title: 'Success',
+        message: data.message || 'Task execution started',
+        color: 'green',
+      });
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to execute task',
+        color: 'red',
+      });
+    },
+  });
+
+  // If taskId is provided, show task detail view
+  if (taskId) {
+    if (isLoadingTask) {
+      return (
+        <Container size="xl">
+          <Text c="dimmed">{t('common.loading')}</Text>
+        </Container>
+      );
+    }
+
+    if (!task) {
+      return (
+        <Container size="xl">
+          <Text c="red">{t('errors.taskNotFound')}</Text>
+          <Button mt="md" onClick={() => router.push('/tasks')}>
+            {t('common.back')}
+          </Button>
+        </Container>
+      );
+    }
+
+    return (
+      <Container size="xl">
+        <Group mb="xl" justify="space-between">
+          <Button
+            variant="subtle"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() => router.push('/tasks')}
+          >
+            {t('common.back')}
+          </Button>
+          {(task.status === 'pending' || task.status === 'failed') && (
+            <Button
+              leftSection={<IconPlayerPlay size={16} />}
+              onClick={() => executeDetailMutation.mutate(taskId)}
+              loading={executeDetailMutation.isPending}
+              color="blue"
+            >
+              Execute Task
+            </Button>
+          )}
+        </Group>
+
+        <Title order={1} mb="xl">{task.name}</Title>
+
+        <Tabs defaultValue="overview">
+          <Tabs.List>
+            <Tabs.Tab value="overview" leftSection={<IconInfoCircle size={16} />}>
+              {t('tasks.detail')}
+            </Tabs.Tab>
+            <Tabs.Tab value="tree" leftSection={<IconTree size={16} />}>
+              Tree View
+            </Tabs.Tab>
+            <Tabs.Tab value="inputs" leftSection={<IconCode size={16} />}>
+              {t('taskForm.inputs')}
+            </Tabs.Tab>
+            <Tabs.Tab value="result" leftSection={<IconFileText size={16} />}>
+              Result
+            </Tabs.Tab>
+            <Tabs.Tab value="json" leftSection={<IconDatabase size={16} />}>
+              Full Model (JSON)
+            </Tabs.Tab>
+          </Tabs.List>
+
+          <Tabs.Panel value="overview" pt="md">
+            <Stack gap="md">
+              <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Group justify="space-between" mb="md">
+                  <Text fw={500}>{t('tasks.status')}</Text>
+                  <Badge color={getStatusColor(task.status)} size="lg">
+                    {task.status || 'pending'}
+                  </Badge>
+                </Group>
+                {task.progress !== undefined && (
+                  <>
+                    <Text fw={500} mb="xs">{t('tasks.progress')}</Text>
+                    <Progress value={(task.progress || 0) * 100} mb="md" />
+                  </>
+                )}
+                <Group justify="space-between">
+                  <div>
+                    <Text size="sm" c="dimmed">{t('tasks.id')}</Text>
+                    <Code>{task.id}</Code>
+                  </div>
+                  {task.parent_id && (
+                    <div>
+                      <Text size="sm" c="dimmed">Parent ID</Text>
+                      <Code>{task.parent_id}</Code>
+                    </div>
+                  )}
+                </Group>
+                {task.created_at && (
+                  <Group justify="space-between" mt="md">
+                    <div>
+                      <Text size="sm" c="dimmed">{t('tasks.createdAt')}</Text>
+                      <Text size="sm">{new Date(task.created_at).toLocaleString()}</Text>
+                    </div>
+                    {task.updated_at && (
+                      <div>
+                        <Text size="sm" c="dimmed">{t('tasks.updatedAt')}</Text>
+                        <Text size="sm">{new Date(task.updated_at).toLocaleString()}</Text>
+                      </div>
+                    )}
+                  </Group>
+                )}
+              </Card>
+
+              {task.error && (
+                <Card shadow="sm" padding="lg" radius="md" withBorder style={{ borderColor: 'var(--mantine-color-red-6)' }}>
+                  <Text fw={500} c="red" mb="xs">Error</Text>
+                  <Code block>{task.error}</Code>
+                </Card>
+              )}
+            </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="tree" pt="md">
+            {taskTree ? (
+              <TaskTreeView task={taskTree} />
+            ) : (
+              <Text c="dimmed">No tree data available</Text>
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="inputs" pt="md">
+            <Card shadow="sm" padding="lg" radius="md" withBorder>
+              <Code block>{JSON.stringify(task.inputs || {}, null, 2)}</Code>
+            </Card>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="result" pt="md">
+            <Card shadow="sm" padding="lg" radius="md" withBorder>
+              <Code block>{JSON.stringify(task.result || {}, null, 2)}</Code>
+            </Card>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="json" pt="md">
+            <Card shadow="sm" padding="lg" radius="md" withBorder>
+              <Text size="sm" c="dimmed" mb="md">
+                Complete task model data (all fields)
+              </Text>
+              <Code block style={{ maxHeight: '70vh', overflow: 'auto' }}>
+                {JSON.stringify(task, null, 2)}
+              </Code>
+            </Card>
+          </Tabs.Panel>
+        </Tabs>
+      </Container>
+    );
+  }
+
+  // Otherwise, show task list view
   return (
     <Container size="xl">
       <Group justify="space-between" mb="xl">
@@ -432,8 +685,8 @@ export default function TaskListPage() {
         />
       </Group>
 
-      {/* Show demo init button if can_init is true */}
-      {!isLoadingDemoStatus && demoInitStatus?.success && demoInitStatus.can_init && (
+      {/* Show demo init button if can_init is true, but check if demo tasks already exist */}
+      {!isLoadingDemoStatus && demoInitStatus?.success && demoInitStatus.can_init && !hasDemoTasks && (
         <Alert 
           icon={<IconInfoCircle size={16} />} 
           color="blue" 
@@ -448,13 +701,58 @@ export default function TaskListPage() {
             <Text size="sm">
               {demoInitStatus.message || `${demoInitStatus.missing_executors?.length || 0} executors need demo tasks. Click the button to initialize.`}
             </Text>
+            <Group gap="xs">
+              <Button
+                variant="subtle"
+                leftSection={<IconRefresh size={16} />}
+                onClick={() => {
+                  queryClient.invalidateQueries({ queryKey: ['demo-init-status'] });
+                  queryClient.refetchQueries({ queryKey: ['demo-init-status'] });
+                }}
+                size="sm"
+              >
+                Refresh Status
+              </Button>
+              <Button
+                leftSection={<IconDatabase size={16} />}
+                onClick={() => initDemoTasksMutation.mutate()}
+                loading={initDemoTasksMutation.isPending}
+                size="sm"
+              >
+                Initialize Demo Tasks
+              </Button>
+            </Group>
+          </Group>
+        </Alert>
+      )}
+      
+      {/* Show warning if can_init is true but demo tasks exist (backend status may be stale) */}
+      {!isLoadingDemoStatus && demoInitStatus?.success && demoInitStatus.can_init && hasDemoTasks && (
+        <Alert 
+          icon={<IconInfoCircle size={16} />} 
+          color="yellow" 
+          title="Demo Tasks Status"
+          mb="md"
+          withCloseButton
+          onClose={() => {
+            // Optionally hide the alert after closing
+          }}
+        >
+          <Group justify="space-between" align="center">
+            <Text size="sm">
+              Demo tasks appear to exist, but backend status shows initialization is still needed. The status may be stale. Click refresh to update.
+            </Text>
             <Button
-              leftSection={<IconDatabase size={16} />}
-              onClick={() => initDemoTasksMutation.mutate()}
-              loading={initDemoTasksMutation.isPending}
+              variant="subtle"
+              leftSection={<IconRefresh size={16} />}
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ['demo-init-status'] });
+                queryClient.refetchQueries({ queryKey: ['demo-init-status'] });
+                queryClient.invalidateQueries({ queryKey: ['tasks'] });
+              }}
               size="sm"
             >
-              Initialize Demo Tasks
+              Refresh Status
             </Button>
           </Group>
         </Alert>
@@ -505,6 +803,18 @@ export default function TaskListPage() {
         </Table>
       )}
     </Container>
+  );
+}
+
+export default function TaskListPage() {
+  return (
+    <Suspense fallback={
+      <Container size="xl">
+        <Text c="dimmed">Loading...</Text>
+      </Container>
+    }>
+      <TaskListPageContent />
+    </Suspense>
   );
 }
 

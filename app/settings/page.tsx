@@ -14,7 +14,7 @@ import { useForm } from '@mantine/form';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '@mantine/notifications';
 import { useEffect } from 'react';
-import { useAutoLogin } from '@/lib/hooks/useAutoLogin';
+import { useAutoLoginContext } from '@/lib/contexts/AutoLoginContext';
 
 interface SettingsFormValues {
   apiUrl: string;
@@ -26,8 +26,8 @@ export default function SettingsPage() {
 
   // Read environment variables (with defaults)
   const showAuthSettings = process.env.NEXT_PUBLIC_SHOW_AUTH_SETTINGS !== 'false';
-  // Use useAutoLogin hook to get auto-login status (includes verification)
-  const autoLoginStatus = useAutoLogin();
+  // Use auto-login context to get auto-login status (includes verification)
+  const autoLoginStatus = useAutoLoginContext();
   const autoLoginEnabled = autoLoginStatus.enabled;
 
   const form = useForm<SettingsFormValues>({
