@@ -23,15 +23,28 @@ export default function LLMKeySettingsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [headerKey, setHeaderKey] = useState('');
+  const [headerProvider, setHeaderProvider] = useState<string>('');
   const [configKey, setConfigKey] = useState('');
   const [selectedProvider, setSelectedProvider] = useState<string>('');
 
-  // Load header key from localStorage
+  // Load header key from localStorage and parse provider:key format
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('llm_api_key');
       if (stored) {
-        setHeaderKey(stored);
+        // Parse provider:key format
+        const colonIndex = stored.indexOf(':');
+        if (colonIndex > 0) {
+          // Has provider prefix
+          const provider = stored.substring(0, colonIndex);
+          const key = stored.substring(colonIndex + 1);
+          setHeaderProvider(provider);
+          setHeaderKey(key);
+        } else {
+          // No provider prefix, just key (backward compatible)
+          setHeaderProvider('');
+          setHeaderKey(stored);
+        }
       }
     }
   }, []);
@@ -60,10 +73,12 @@ export default function LLMKeySettingsPage() {
   ];
 
   const setHeaderKeyMutation = useMutation({
-    mutationFn: (key: string) => {
+    mutationFn: ({ key, provider }: { key: string; provider?: string }) => {
       if (typeof window !== 'undefined') {
         if (key) {
-          localStorage.setItem('llm_api_key', key);
+          // Format: provider:key if provider is specified, otherwise just key
+          const formattedKey = provider ? `${provider}:${key}` : key;
+          localStorage.setItem('llm_api_key', formattedKey);
         } else {
           localStorage.removeItem('llm_api_key');
         }
@@ -131,27 +146,38 @@ export default function LLMKeySettingsPage() {
             Suitable for demo/one-time usage. Key is not stored on server.
           </Text>
           <Group>
+            <Select
+              placeholder="Select provider (optional)"
+              label="Provider"
+              value={headerProvider}
+              onChange={(value) => setHeaderProvider(value || '')}
+              data={providerOptions}
+              clearable
+              style={{ width: 200 }}
+            />
             <TextInput
-              placeholder="sk-... (provider will be auto-detected from model)"
-              label="LLM API Key"
+              placeholder="sk-..."
+              label="API Key"
               value={headerKey}
               onChange={(e) => setHeaderKey(e.target.value)}
               type="password"
               style={{ flex: 1 }}
             />
             <Button
-              onClick={() => setHeaderKeyMutation.mutate(headerKey)}
+              onClick={() => setHeaderKeyMutation.mutate({ key: headerKey, provider: headerProvider || undefined })}
               loading={setHeaderKeyMutation.isPending}
+              disabled={!headerKey}
             >
               Save
             </Button>
-            {headerKey && (
+            {(headerKey || headerProvider) && (
               <Button
                 variant="outline"
                 color="red"
                 onClick={() => {
                   setHeaderKey('');
-                  setHeaderKeyMutation.mutate('');
+                  setHeaderProvider('');
+                  setHeaderKeyMutation.mutate({ key: '' });
                 }}
               >
                 Clear
