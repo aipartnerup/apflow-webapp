@@ -283,22 +283,24 @@ export function AppNavbar({ onNavigate, mobileOpened, desktopOpened, onToggleMob
                 style={{ width: '100%' }}
               />
               <Divider my={4} />
-              <Group gap="xs" p="xs" style={{ borderRadius: 'var(--mantine-radius-md)' }}>
-                <IconTestPipe size={18} style={{ flexShrink: 0, color: colorScheme === 'dark' ? undefined : 'var(--mantine-color-gray-9)' }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <Text size="sm" fw={500} truncate c={colorScheme === 'dark' ? undefined : 'var(--mantine-color-gray-9)'}>
-                    Demo Mode
-                  </Text>
-                  <Text size="xs" c={colorScheme === 'dark' ? 'dimmed' : 'gray.7'} truncate>
-                    Use demo data for execution
-                  </Text>
-                </div>
-                <Switch
-                  checked={useDemo}
-                  onChange={(event) => setUseDemo(event.currentTarget.checked)}
-                  size="sm"
-                />
-              </Group>
+              {mounted && (
+                <Group gap="xs" p="xs" style={{ borderRadius: 'var(--mantine-radius-md)' }}>
+                  <IconTestPipe size={18} style={{ flexShrink: 0, color: colorScheme === 'dark' ? undefined : 'var(--mantine-color-gray-9)' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text size="sm" fw={500} truncate c={colorScheme === 'dark' ? undefined : 'var(--mantine-color-gray-9)'}>
+                      Demo Mode
+                    </Text>
+                    <Text size="xs" c={colorScheme === 'dark' ? 'dimmed' : 'gray.7'} truncate>
+                      Use demo data for execution
+                    </Text>
+                  </div>
+                  <Switch
+                    checked={useDemo}
+                    onChange={(event) => setUseDemo(event.currentTarget.checked)}
+                    size="sm"
+                  />
+                </Group>
+              )}
               <Divider my={4} />
               <NavLink
                 label="WebApp"
