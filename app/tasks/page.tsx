@@ -370,14 +370,14 @@ function TaskListPageContent() {
                 </ActionIcon>
               </Tooltip>
               {(task.status === 'pending' || task.status === 'failed') && (
-                <Tooltip label="Execute Task">
+                <Tooltip label={task.status === 'failed' ? 'Retry Task' : 'Execute Task'}>
                   <ActionIcon
                     variant="subtle"
-                    color="blue"
+                    color={task.status === 'failed' ? 'orange' : 'blue'}
                     onClick={() => executeMutation.mutate(task.id)}
                     loading={isTaskExecuting(task, parentId)}
                   >
-                    <IconPlayerPlay size={16} />
+                    {task.status === 'failed' ? <IconRefresh size={16} /> : <IconPlayerPlay size={16} />}
                   </ActionIcon>
                 </Tooltip>
               )}
@@ -524,12 +524,12 @@ function TaskListPageContent() {
           </Button>
           {(task.status === 'pending' || task.status === 'failed') && (
             <Button
-              leftSection={<IconPlayerPlay size={16} />}
+              leftSection={task.status === 'failed' ? <IconRefresh size={16} /> : <IconPlayerPlay size={16} />}
               onClick={() => executeDetailMutation.mutate(taskId)}
               loading={executeDetailMutation.isPending}
-              color="blue"
+              color={task.status === 'failed' ? 'orange' : 'blue'}
             >
-              Execute Task
+              {task.status === 'failed' ? 'Retry Task' : 'Execute Task'}
             </Button>
           )}
         </Group>
@@ -622,18 +622,39 @@ function TaskListPageContent() {
           </Tabs.Panel>
 
           <Tabs.Panel value="result" pt="md">
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-              <Code block>{JSON.stringify(task.result || {}, null, 2)}</Code>
-            </Card>
+            <Stack gap="md">
+              {taskTree && (
+                <>
+                  <div>
+                    <Text fw={500} size="sm" mb="xs">Task Tree Results</Text>
+                    <Card shadow="sm" padding="lg" radius="md" withBorder>
+                      <Code block style={{ maxHeight: '70vh', overflow: 'auto' }}>
+                        {JSON.stringify(taskTree, null, 2)}
+                      </Code>
+                    </Card>
+                  </div>
+                </>
+              )}
+              {task.result && (
+                <div>
+                  <Text fw={500} size="sm" mb="xs">Current Task Result</Text>
+                  <Card shadow="sm" padding="lg" radius="md" withBorder>
+                    <Code block style={{ maxHeight: '40vh', overflow: 'auto' }}>
+                      {JSON.stringify(task.result, null, 2)}
+                    </Code>
+                  </Card>
+                </div>
+              )}
+            </Stack>
           </Tabs.Panel>
 
           <Tabs.Panel value="json" pt="md">
             <Card shadow="sm" padding="lg" radius="md" withBorder>
               <Text size="sm" c={colorScheme === 'dark' ? 'dimmed' : 'gray.7'} mb="md">
-                Complete task model data (all fields)
+                Complete task tree with all nested children and their data
               </Text>
               <Code block style={{ maxHeight: '70vh', overflow: 'auto' }}>
-                {JSON.stringify(task, null, 2)}
+                {JSON.stringify(taskTree || task, null, 2)}
               </Code>
             </Card>
           </Tabs.Panel>
