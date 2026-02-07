@@ -626,7 +626,24 @@ function TaskListPageContent() {
               {taskTree && (
                 <>
                   <div>
-                    <Text fw={500} size="sm" mb="xs">Task Tree Results</Text>
+                    <Group justify="space-between" mb="xs">
+                      <Text fw={500} size="sm">Task Tree Results</Text>
+                      <Tooltip label="Copy to clipboard">
+                        <ActionIcon
+                          variant="subtle"
+                          onClick={() => {
+                            navigator.clipboard.writeText(JSON.stringify(taskTree, null, 2));
+                            notifications.show({
+                              title: 'Copied',
+                              message: 'Task tree results copied to clipboard',
+                              color: 'green',
+                            });
+                          }}
+                        >
+                          <IconCopy size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
                     <Card shadow="sm" padding="lg" radius="md" withBorder>
                       <Code block style={{ maxHeight: '70vh', overflow: 'auto' }}>
                         {JSON.stringify(taskTree, null, 2)}
@@ -637,7 +654,24 @@ function TaskListPageContent() {
               )}
               {task.result && (
                 <div>
-                  <Text fw={500} size="sm" mb="xs">Current Task Result</Text>
+                  <Group justify="space-between" mb="xs">
+                    <Text fw={500} size="sm">Current Task Result</Text>
+                    <Tooltip label="Copy to clipboard">
+                      <ActionIcon
+                        variant="subtle"
+                        onClick={() => {
+                          navigator.clipboard.writeText(JSON.stringify(task.result, null, 2));
+                          notifications.show({
+                            title: 'Copied',
+                            message: 'Task result copied to clipboard',
+                            color: 'green',
+                          });
+                        }}
+                      >
+                        <IconCopy size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
                   <Card shadow="sm" padding="lg" radius="md" withBorder>
                     <Code block style={{ maxHeight: '40vh', overflow: 'auto' }}>
                       {JSON.stringify(task.result, null, 2)}
@@ -650,9 +684,26 @@ function TaskListPageContent() {
 
           <Tabs.Panel value="json" pt="md">
             <Card shadow="sm" padding="lg" radius="md" withBorder>
-              <Text size="sm" c={colorScheme === 'dark' ? 'dimmed' : 'gray.7'} mb="md">
-                Complete task tree with all nested children and their data
-              </Text>
+              <Group justify="space-between" mb="md">
+                <Text size="sm" c={colorScheme === 'dark' ? 'dimmed' : 'gray.7'}>
+                  Complete task tree with all nested children and their data
+                </Text>
+                <Tooltip label="Copy to clipboard">
+                  <ActionIcon
+                    variant="subtle"
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(taskTree || task, null, 2));
+                      notifications.show({
+                        title: 'Copied',
+                        message: 'Full JSON copied to clipboard',
+                        color: 'green',
+                      });
+                    }}
+                  >
+                    <IconCopy size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
               <Code block style={{ maxHeight: '70vh', overflow: 'auto' }}>
                 {JSON.stringify(taskTree || task, null, 2)}
               </Code>
