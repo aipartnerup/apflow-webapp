@@ -20,6 +20,7 @@ import {
   IconMoon,
   IconBrandGithub,
   IconTestPipe,
+  IconClock,
 } from '@tabler/icons-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
@@ -175,7 +176,21 @@ export function AppNavbar({ onNavigate, mobileOpened, desktopOpened, onToggleMob
                 router.push('/tasks/running');
                 onNavigate?.();
               }}
-              style={{ 
+              style={{
+                marginBottom: 2,
+                justifyContent: 'center'
+              }}
+              className="collapsed-navlink"
+            />
+            <NavLink
+              label=""
+              leftSection={<IconClock size={18} />}
+              active={isActive('/scheduler')}
+              onClick={() => {
+                router.push('/scheduler');
+                onNavigate?.();
+              }}
+              style={{
                 marginBottom: 2,
                 justifyContent: 'center'
               }}
@@ -220,6 +235,21 @@ export function AppNavbar({ onNavigate, mobileOpened, desktopOpened, onToggleMob
             />
           </NavLink>
         )}
+
+        <NavLink
+          label={isCollapsed ? '' : t('nav.scheduler')}
+          leftSection={<IconClock size={18} />}
+          active={isActive('/scheduler')}
+          onClick={() => {
+            router.push('/scheduler');
+            onNavigate?.();
+          }}
+          style={{
+            marginBottom: 2,
+            justifyContent: isCollapsed ? 'center' : 'flex-start'
+          }}
+          className={isCollapsed ? 'collapsed-navlink' : ''}
+        />
 
         <NavLink
           label={isCollapsed ? '' : t('nav.settings')}

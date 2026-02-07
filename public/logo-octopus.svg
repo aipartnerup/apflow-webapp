@@ -1,0 +1,48 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- apflow octopus logo -->
+
+  <!-- Tentacles (behind body) - 6 visible, implying 8 -->
+  <g fill="none" stroke-linecap="round">
+    <!-- Left tentacles -->
+    <path d="M 148,268 C 90,318 50,385 82,435 C 92,452 118,447 110,426"
+          stroke="#E05040" stroke-width="32"/>
+    <path d="M 188,298 C 148,358 130,415 160,452 C 168,464 192,457 184,438"
+          stroke="#E05040" stroke-width="28"/>
+    <path d="M 228,314 C 212,378 208,425 232,456 C 238,466 258,460 250,443"
+          stroke="#E05040" stroke-width="24"/>
+
+    <!-- Right tentacles (mirrored) -->
+    <path d="M 284,314 C 300,378 304,425 280,456 C 274,466 254,460 262,443"
+          stroke="#E05040" stroke-width="24"/>
+    <path d="M 324,298 C 364,358 382,415 352,452 C 344,464 320,457 328,438"
+          stroke="#E05040" stroke-width="28"/>
+    <path d="M 364,268 C 422,318 462,385 430,435 C 420,452 394,447 402,426"
+          stroke="#E05040" stroke-width="32"/>
+  </g>
+
+  <!-- Head dome -->
+  <ellipse cx="256" cy="185" rx="148" ry="140" fill="#FF6347"/>
+
+  <!-- Head sheen highlight -->
+  <ellipse cx="218" cy="125" rx="62" ry="40" fill="#FF8066" opacity="0.4"/>
+
+  <!-- Left eye -->
+  <ellipse cx="195" cy="178" rx="45" ry="48" fill="white"/>
+  <circle cx="207" cy="184" r="24" fill="#2D3748"/>
+  <circle cx="217" cy="172" r="10" fill="white"/>
+  <circle cx="202" cy="192" r="5" fill="white" opacity="0.5"/>
+
+  <!-- Right eye -->
+  <ellipse cx="317" cy="178" rx="45" ry="48" fill="white"/>
+  <circle cx="329" cy="184" r="24" fill="#2D3748"/>
+  <circle cx="339" cy="172" r="10" fill="white"/>
+  <circle cx="324" cy="192" r="5" fill="white" opacity="0.5"/>
+
+  <!-- Smile -->
+  <path d="M 230,237 Q 256,264 282,237"
+        stroke="#C0392B" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Cheek blush -->
+  <ellipse cx="148" cy="216" rx="22" ry="13" fill="#FF9999" opacity="0.35"/>
+  <ellipse cx="364" cy="216" rx="22" ry="13" fill="#FF9999" opacity="0.35"/>
+</svg>

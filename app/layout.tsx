@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { MantineProvider, ColorSchemeScript } from '@mantine/core';
+import { DatesProvider } from '@mantine/dates';
 import { Notifications } from '@mantine/notifications';
 import '@mantine/core/styles.css';
+import '@mantine/dates/styles.css';
 import '@mantine/notifications/styles.css';
 import './globals.css';
 import { AppShellWrapper } from '@/components/layout/AppShell';
@@ -36,14 +38,16 @@ export default function RootLayout({
         <QueryProvider>
           <I18nProvider>
             <MantineProvider theme={themeConfig} defaultColorScheme="auto">
-              <AutoLoginProvider>
-                <UseDemoProvider>
-                  <Notifications position="top-right" />
-                  <AppShellWrapper>
-                    {children}
-                  </AppShellWrapper>
-                </UseDemoProvider>
-              </AutoLoginProvider>
+              <DatesProvider settings={{}}>
+                <AutoLoginProvider>
+                  <UseDemoProvider>
+                    <Notifications position="top-right" />
+                    <AppShellWrapper>
+                      {children}
+                    </AppShellWrapper>
+                  </UseDemoProvider>
+                </AutoLoginProvider>
+              </DatesProvider>
             </MantineProvider>
           </I18nProvider>
         </QueryProvider>

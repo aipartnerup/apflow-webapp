@@ -47,6 +47,29 @@ export interface Task {
   original_task_id?: string;
   has_copy?: boolean;
   has_children?: boolean;
+  // Schedule fields
+  schedule_type?: string;
+  schedule_expression?: string;
+  schedule_enabled?: boolean;
+  schedule_start_at?: string;
+  schedule_end_at?: string;
+  next_run_at?: string;
+  last_run_at?: string;
+  max_runs?: number;
+  run_count?: number;
+}
+
+export interface ScheduledTask extends Task {
+  schedule_type: string;
+  schedule_expression: string;
+  schedule_enabled: boolean;
+}
+
+export interface WebhookTriggerResponse {
+  success: boolean;
+  task_id: string;
+  execution_id?: string;
+  message?: string;
 }
 
 export interface TaskTree extends Task {
@@ -438,6 +461,12 @@ export class AIPartnerUpFlowClient {
       progress?: number;
       started_at?: string;
       completed_at?: string;
+      schedule_type?: string;
+      schedule_expression?: string;
+      schedule_enabled?: boolean;
+      schedule_start_at?: string;
+      schedule_end_at?: string;
+      max_runs?: number;
     }
   ): Promise<Task> {
     return this.rpcRequest<Task>('/tasks', 'tasks.update', {
@@ -839,6 +868,75 @@ export class AIPartnerUpFlowClient {
   async getRunningTaskCount(userId?: string): Promise<{ count: number; user_id?: string }> {
     return this.rpcRequest<{ count: number; user_id?: string }>('/tasks', 'tasks.running.count', {
       user_id: userId,
+    });
+  }
+
+  // Scheduler Methods
+
+  /**
+   * List scheduled tasks
+   */
+  async getScheduledTasks(params?: {
+    enabled_only?: boolean;
+    schedule_type?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ScheduledTask[]> {
+    return this.rpcRequest<ScheduledTask[]>('/tasks', 'tasks.scheduled.list', {
+      enabled_only: params?.enabled_only,
+      schedule_type: params?.schedule_type,
+      limit: params?.limit ?? 100,
+      offset: params?.offset ?? 0,
+    });
+  }
+
+  /**
+   * Initialize schedule for a task (calculate next_run_at)
+   */
+  async initSchedule(taskId: string, fromTime?: string): Promise<Task> {
+    return this.rpcRequest<Task>('/tasks', 'tasks.scheduled.init', {
+      task_id: taskId,
+      from_time: fromTime,
+    });
+  }
+
+  /**
+   * Complete a scheduled run
+   */
+  async completeScheduledRun(taskId: string, params?: {
+    success?: boolean;
+    result?: any;
+  }): Promise<Task> {
+    return this.rpcRequest<Task>('/tasks', 'tasks.scheduled.complete', {
+      task_id: taskId,
+      ...params,
+    });
+  }
+
+  /**
+   * Export scheduled tasks as iCalendar (.ics) format
+   */
+  async exportIcal(params?: {
+    schedule_type?: string;
+    enabled_only?: boolean;
+    limit?: number;
+    calendar_name?: string;
+  }): Promise<{ ical_content: string; task_count: number }> {
+    return this.rpcRequest<{ ical_content: string; task_count: number }>('/tasks', 'tasks.scheduled.export-ical', {
+      enabled_only: params?.enabled_only ?? true,
+      schedule_type: params?.schedule_type,
+      limit: params?.limit ?? 100,
+      calendar_name: params?.calendar_name,
+    });
+  }
+
+  /**
+   * Trigger a task via webhook
+   */
+  async triggerWebhook(taskId: string, params?: Record<string, any>): Promise<WebhookTriggerResponse> {
+    return this.rpcRequest<WebhookTriggerResponse>('/tasks', 'tasks.webhook.trigger', {
+      task_id: taskId,
+      ...params,
     });
   }
 
