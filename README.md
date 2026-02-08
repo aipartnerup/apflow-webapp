@@ -1,16 +1,22 @@
 # APFlow WebApp
 
+<p align="center">
+  <img src="public/logo.svg" alt="apflow Logo" width="128" height="128" />
+</p>
+
 A modern web application for managing and executing tasks with apflow, built with Next.js and Mantine.
 
 ## Features
 
-- 🎨 **Modern UI**: Built with Mantine UI components
+- 🎨 **Modern UI**: Built with Mantine UI components with collapsible sidebar navigation
 - 🌍 **Internationalization**: Support for multiple languages (English, Chinese)
 - 📊 **Dashboard**: Real-time task statistics and monitoring
 - 📋 **Task Management**: Create, view, update, and delete tasks
 - 🌳 **Task Tree View**: Visualize task dependencies and hierarchy
+- 🕐 **Scheduler**: Schedule tasks with cron, interval, daily, weekly, monthly, and one-time expressions
 - ⚡ **Real-time Updates**: Auto-refresh for running tasks
-- 🔐 **Authentication**: JWT token support
+- 🔐 **Authentication**: JWT token and automatic cookie-based authentication
+- 🤖 **LLM Integration**: Configure LLM API keys for AI-powered task execution
 - 🎯 **Type-safe**: Full TypeScript support
 
 ## Tech Stack
@@ -102,12 +108,16 @@ apflow-webapp/
 │   │   ├── create/         # Create task
 │   │   ├── running/        # Running tasks
 │   │   └── [id]/           # Task detail
-│   └── settings/           # Settings page
+│   ├── scheduler/          # Scheduler page
+│   │   └── page.tsx        # Scheduled tasks management
+│   └── settings/           # Settings pages
+│       ├── page.tsx        # API settings
+│       └── llm/            # LLM key settings
+│           └── page.tsx
 ├── components/             # React components
 │   ├── layout/             # Layout components
 │   │   ├── AppShell.tsx    # Main layout wrapper
-│   │   ├── Navbar.tsx      # Sidebar navigation
-│   │   └── Header.tsx      # Top header
+│   │   └── Navbar.tsx      # Collapsible sidebar navigation
 │   └── tasks/              # Task-related components
 │       └── TaskTreeView.tsx # Task tree visualization
 ├── lib/                    # Utilities and configurations
@@ -121,6 +131,7 @@ apflow-webapp/
 │   └── providers/         # React context providers
 │       └── QueryProvider.tsx
 └── public/                # Static assets
+    └── logo.svg           # Brand logo (starfish)
 ```
 
 ## Features Overview
@@ -138,13 +149,21 @@ apflow-webapp/
 - **Task Detail**: View detailed task information, tree structure, inputs, and results
 - **Running Tasks**: Monitor currently executing tasks with real-time progress
 
+### Scheduler
+
+- View all scheduled tasks with status, type, expression, and run count
+- Filter by schedule type (once, interval, cron, daily, weekly, monthly) and task status (pending, in_progress, completed, failed, cancelled)
+- Toggle schedules on/off, trigger immediate execution, and configure schedule parameters
+- Add schedules to existing tasks or remove them
+- Export schedules as iCal (.ics) files
+
 ### Settings
 
-- Configure API base URL
-- Authentication configuration (controlled by environment variables):
+- **API Settings**: Configure API base URL and authentication
   - **Developer Mode**: Show token input field (default)
   - **Auto Login Mode**: Automatic cookie-based authentication (demo servers)
   - **User Mode**: Hide token settings, show contact admin message
+- **LLM Settings**: Manage LLM API keys for AI-powered task execution (supports header-based and server-side storage)
 
 ## API Integration
 
