@@ -158,7 +158,9 @@
     "addSuccess": "Schedule added successfully",
     "addError": "Failed to add schedule",
     "never": "Never",
-    "unlimited": "Unlimited"
+    "unlimited": "Unlimited",
+    "allStatuses": "All statuses",
+    "taskStatus": "Status"
   },
   "errors": {
     "apiError": "API Error",

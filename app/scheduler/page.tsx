@@ -105,6 +105,17 @@ function getTypeColor(type?: string): string {
   }
 }
 
+function getStatusColor(status?: string): string {
+  switch (status) {
+    case 'completed': return 'green';
+    case 'failed': return 'red';
+    case 'in_progress': return 'blue';
+    case 'cancelled': return 'gray';
+    case 'pending':
+    default: return 'yellow';
+  }
+}
+
 /** Parse an ISO string to Date, or return null */
 function parseDate(value?: string): Date | null {
   if (!value) return null;
@@ -132,8 +143,9 @@ function SchedulerPageContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [enabledOnly, setEnabledOnly] = useState(false);
+  const [enabledOnly, setEnabledOnly] = useState(true);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -169,10 +181,11 @@ function SchedulerPageContent() {
   }
 
   const { data: scheduledTasks, isLoading, refetch } = useQuery({
-    queryKey: ['scheduled-tasks', enabledOnly, typeFilter],
+    queryKey: ['scheduled-tasks', enabledOnly, typeFilter, statusFilter],
     queryFn: () => apiClient.getScheduledTasks({
-      enabled_only: enabledOnly || undefined,
+      enabled_only: enabledOnly,
       schedule_type: typeFilter || undefined,
+      status: statusFilter || undefined,
     }),
     refetchInterval: 10000,
   });
@@ -329,7 +342,7 @@ function SchedulerPageContent() {
     setExporting(true);
     try {
       const result = await apiClient.exportIcal({
-        enabled_only: enabledOnly || undefined,
+        enabled_only: enabledOnly,
         schedule_type: typeFilter || undefined,
       });
       if (!result.ical_content || result.task_count === 0) {
@@ -394,6 +407,15 @@ function SchedulerPageContent() {
     ...SCHEDULE_TYPES.map(st => ({ value: st.value, label: t(st.labelKey) })),
   ];
 
+  const statusFilterData = [
+    { value: '', label: t('scheduler.allStatuses') },
+    { value: 'pending', label: t('tasks.statusPending') },
+    { value: 'in_progress', label: t('tasks.statusInProgress') },
+    { value: 'completed', label: t('tasks.statusCompleted') },
+    { value: 'failed', label: t('tasks.statusFailed') },
+    { value: 'cancelled', label: t('tasks.statusCancelled') },
+  ];
+
   const editExpressionHelpKey = `scheduler.expressionHelp.${form.values.schedule_type}` as const;
   const addExpressionHelpKey = `scheduler.expressionHelp.${addForm.values.schedule_type}` as const;
 
@@ -428,6 +450,11 @@ function SchedulerPageContent() {
       <Table.Td>
         <Text size="sm" fw={500} lineClamp={1}>{task.name}</Text>
         <Text size="xs" c="dimmed" ff="monospace" lineClamp={1}>{task.id}</Text>
+      </Table.Td>
+      <Table.Td>
+        <Badge color={getStatusColor(task.status)} variant="light" size="sm">
+          {t(`tasks.status${task.status === 'in_progress' ? 'InProgress' : (task.status ? task.status.charAt(0).toUpperCase() + task.status.slice(1) : 'Pending')}`)}
+        </Badge>
       </Table.Td>
       <Table.Td>
         <Badge color={getTypeColor(task.schedule_type)} variant="light" size="sm">
@@ -549,6 +576,14 @@ function SchedulerPageContent() {
           clearable
           style={{ width: 160 }}
         />
+        <Select
+          placeholder={t('scheduler.allStatuses')}
+          data={statusFilterData}
+          value={statusFilter || ''}
+          onChange={(v) => setStatusFilter(v || null)}
+          clearable
+          style={{ width: 160 }}
+        />
       </Group>
 
       {isLoading ? (
@@ -567,6 +602,7 @@ function SchedulerPageContent() {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>{t('scheduler.taskName')}</Table.Th>
+                <Table.Th>{t('scheduler.taskStatus')}</Table.Th>
                 <Table.Th>{t('scheduler.scheduleType')}</Table.Th>
                 <Table.Th>{t('scheduler.expression')}</Table.Th>
                 <Table.Th>{t('scheduler.enabled')}</Table.Th>

@@ -158,7 +158,9 @@
     "addSuccess": "调度添加成功",
     "addError": "添加调度失败",
     "never": "从未",
-    "unlimited": "无限制"
+    "unlimited": "无限制",
+    "allStatuses": "所有状态",
+    "taskStatus": "状态"
   },
   "errors": {
     "apiError": "API错误",

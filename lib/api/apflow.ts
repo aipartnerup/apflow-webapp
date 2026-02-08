@@ -879,12 +879,14 @@ export class AIPartnerUpFlowClient {
   async getScheduledTasks(params?: {
     enabled_only?: boolean;
     schedule_type?: string;
+    status?: string;
     limit?: number;
     offset?: number;
   }): Promise<ScheduledTask[]> {
     return this.rpcRequest<ScheduledTask[]>('/tasks', 'tasks.scheduled.list', {
-      enabled_only: params?.enabled_only,
+      enabled_only: params?.enabled_only ?? true,
       schedule_type: params?.schedule_type,
+      status: params?.status,
       limit: params?.limit ?? 100,
       offset: params?.offset ?? 0,
     });
