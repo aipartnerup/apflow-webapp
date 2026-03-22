@@ -335,7 +335,7 @@ export function AppNavbar({ onNavigate, mobileOpened, desktopOpened, onToggleMob
               <NavLink
                 label="WebApp"
                 leftSection={<IconBrandGithub size={18} />}
-                href="https://github.com/aipartnerup/apflow-webapp"
+                href="https://github.com/aiperceivable/apflow-webapp"
                 target="_blank"
                 rel="noopener noreferrer"
                 component="a"
@@ -348,7 +348,7 @@ export function AppNavbar({ onNavigate, mobileOpened, desktopOpened, onToggleMob
               <NavLink
                 label="API Server"
                 leftSection={<IconBrandGithub size={18} />}
-                href="https://github.com/aipartnerup/apflow-demo"
+                href="https://github.com/aiperceivable/apflow-demo"
                 target="_blank"
                 rel="noopener noreferrer"
                 component="a"
@@ -381,7 +381,7 @@ export function AppNavbar({ onNavigate, mobileOpened, desktopOpened, onToggleMob
               <NavLink
                 label=""
                 leftSection={<IconBrandGithub size={18} />}
-                href="https://github.com/aipartnerup/apflow-webapp"
+                href="https://github.com/aiperceivable/apflow-webapp"
                 target="_blank"
                 rel="noopener noreferrer"
                 component="a"
