@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { Suspense, useState } from 'react';
 import {
   Container,
@@ -180,7 +182,7 @@ function SchedulerPageContent() {
     };
   }
 
-  const { data: scheduledTasks, isLoading, refetch } = useQuery({
+  const { data: scheduledTasksResult, isLoading, refetch } = useQuery({
     queryKey: ['scheduled-tasks', enabledOnly, typeFilter, statusFilter],
     queryFn: () => apiClient.getScheduledTasks({
       enabled_only: enabledOnly,
@@ -190,12 +192,16 @@ function SchedulerPageContent() {
     refetchInterval: 10000,
   });
 
+  const scheduledTasks = scheduledTasksResult?.tasks || [];
+
   // Fetch all tasks for the "Add Schedule" task selector
-  const { data: allTasks } = useQuery({
+  const { data: allTasksResult } = useQuery({
     queryKey: ['all-tasks-for-scheduler'],
-    queryFn: () => apiClient.listTasks({ root_only: true, limit: 200 }),
+    queryFn: () => apiClient.listTasks({ limit: 200 }),
     enabled: addModalOpen,
   });
+
+  const allTasks = allTasksResult?.tasks || [];
 
   // Build select options: exclude tasks that already have a schedule
   const scheduledTaskIds = new Set((scheduledTasks || []).map((st) => st.id));

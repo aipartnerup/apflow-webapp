@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
+
 /**
  * LLM Key Settings Page
  * 
@@ -15,9 +17,30 @@ import { Container, Title, TextInput, Button, Group, Text, Alert, Stack, Select 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/apflow';
 import { useTranslation } from 'react-i18next';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { notifications } from '@mantine/notifications';
-import { IconInfoCircle, IconKey } from '@tabler/icons-react';
+import { IconInfoCircle } from '@tabler/icons-react';
+
+function getStoredHeaderKey(): { key: string; provider: string } {
+  if (typeof window === 'undefined') {
+    return { key: '', provider: '' };
+  }
+
+  const stored = localStorage.getItem('llm_api_key');
+  if (!stored) {
+    return { key: '', provider: '' };
+  }
+
+  const colonIndex = stored.indexOf(':');
+  if (colonIndex <= 0) {
+    return { key: stored, provider: '' };
+  }
+
+  return {
+    provider: stored.substring(0, colonIndex),
+    key: stored.substring(colonIndex + 1),
+  };
+}
 
 export default function LLMKeySettingsPage() {
   const { t } = useTranslation();
@@ -27,26 +50,10 @@ export default function LLMKeySettingsPage() {
   const [configKey, setConfigKey] = useState('');
   const [selectedProvider, setSelectedProvider] = useState<string>('');
 
-  // Load header key from localStorage and parse provider:key format
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('llm_api_key');
-      if (stored) {
-        // Parse provider:key format
-        const colonIndex = stored.indexOf(':');
-        if (colonIndex > 0) {
-          // Has provider prefix
-          const provider = stored.substring(0, colonIndex);
-          const key = stored.substring(colonIndex + 1);
-          setHeaderProvider(provider);
-          setHeaderKey(key);
-        } else {
-          // No provider prefix, just key (backward compatible)
-          setHeaderProvider('');
-          setHeaderKey(stored);
-        }
-      }
-    }
+    const storedHeaderKey = getStoredHeaderKey();
+    setHeaderKey(storedHeaderKey.key);
+    setHeaderProvider(storedHeaderKey.provider);
   }, []);
 
   // Check if user config key exists
@@ -55,6 +62,7 @@ export default function LLMKeySettingsPage() {
     queryFn: () => apiClient.getLLMKeyStatus(selectedProvider || undefined),
     retry: false,
   });
+  const serverConfigAvailable = keyStatus?.server_available !== false;
 
   // Provider options for LLM providers
   const providerOptions = [
@@ -192,11 +200,15 @@ export default function LLMKeySettingsPage() {
         <div>
           <Title order={3} mb="md">Method 2: User Config (Multi-User)</Title>
           <Text c="dimmed" mb="md">
-            Store LLM key on server. Requires apflow[llm-key-config] extra.
-            Suitable for multi-user scenarios. Key is stored in server memory (not database).
+            Store LLM key on server. Requires a server-side LLM key module.
+            Suitable for multi-user scenarios. Key is stored by the server.
           </Text>
           
-          {keyStatus?.has_key ? (
+          {!serverConfigAvailable ? (
+            <Alert icon={<IconInfoCircle size={16} />} color="gray" mb="md">
+              Server-side LLM key storage is not available on this apflow server. Use Method 1.
+            </Alert>
+          ) : keyStatus?.has_key ? (
             <Alert icon={<IconInfoCircle size={16} />} color="blue" mb="md">
               You have a LLM key configured on the server.
             </Alert>
@@ -214,6 +226,7 @@ export default function LLMKeySettingsPage() {
               onChange={(value) => setSelectedProvider(value || '')}
               data={providerOptions}
               clearable
+              disabled={!serverConfigAvailable}
               style={{ width: 200 }}
             />
             <TextInput
@@ -222,12 +235,13 @@ export default function LLMKeySettingsPage() {
               value={configKey}
               onChange={(e) => setConfigKey(e.target.value)}
               type="password"
+              disabled={!serverConfigAvailable}
               style={{ flex: 1 }}
             />
             <Button
               onClick={() => setConfigKeyMutation.mutate(configKey)}
               loading={setConfigKeyMutation.isPending}
-              disabled={!configKey}
+              disabled={!configKey || !serverConfigAvailable}
               style={{ marginTop: 'var(--mantine-spacing-md)' }}
             >
               Save to Server
@@ -269,4 +283,3 @@ export default function LLMKeySettingsPage() {
     </Container>
   );
 }
-

@@ -21,6 +21,8 @@ interface SettingsFormValues {
   authToken: string;
 }
 
+const DEFAULT_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
 export default function SettingsPage() {
   const { t } = useTranslation();
 
@@ -32,14 +34,14 @@ export default function SettingsPage() {
 
   const form = useForm<SettingsFormValues>({
     initialValues: {
-      apiUrl: typeof window !== 'undefined' ? localStorage.getItem('api_url') || 'http://localhost:8000' : 'http://localhost:8000',
+      apiUrl: typeof window !== 'undefined' ? localStorage.getItem('api_url') || DEFAULT_API_URL : DEFAULT_API_URL,
       authToken: typeof window !== 'undefined' ? localStorage.getItem('auth_token') || '' : '',
     },
   });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const apiUrl = localStorage.getItem('api_url') || 'http://localhost:8000';
+      const apiUrl = localStorage.getItem('api_url') || DEFAULT_API_URL;
       const authToken = localStorage.getItem('auth_token') || '';
       
       // Only update if values are different to avoid unnecessary re-renders
@@ -141,4 +143,3 @@ export default function SettingsPage() {
     </Container>
   );
 }
-

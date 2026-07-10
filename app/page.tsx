@@ -22,11 +22,13 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const { isReady: autoLoginReady } = useAutoLoginContext();
 
-  const { data: runningTasks, isLoading: loadingRunning } = useQuery({
+  const { data: runningTasksResult, isLoading: loadingRunning } = useQuery({
     queryKey: ['running-tasks'],
     queryFn: () => apiClient.getRunningTasks(),
     refetchInterval: 5000, // Refresh every 5 seconds
   });
+
+  const runningTasks = runningTasksResult?.tasks || [];
 
   const { data: runningCount } = useQuery({
     queryKey: ['running-count'],
@@ -35,11 +37,13 @@ export default function DashboardPage() {
   });
 
   // Get all tasks for statistics
-  const { data: allTasks, isLoading: loadingAll } = useQuery({
+  const { data: allTasksResult, isLoading: loadingAll } = useQuery({
     queryKey: ['all-tasks-stats'],
     queryFn: () => apiClient.listTasks({ limit: 1000 }), // Get up to 1000 tasks for stats
     refetchInterval: 10000, // Refresh every 10 seconds
   });
+
+  const allTasks = allTasksResult?.tasks || [];
 
   // Check demo init status - wait for auto-login to complete before calling
   const { data: demoInitStatus, isLoading: isLoadingDemoStatus, error: demoStatusError } = useQuery({

@@ -85,7 +85,7 @@
     "title": "Settings",
     "api": "API Configuration",
     "apiUrl": "API Base URL",
-    "apiUrlPlaceholder": "http://localhost:8000",
+    "apiUrlPlaceholder": "http://localhost:8080",
     "authentication": "Authentication",
     "authToken": "Authentication Token",
     "authTokenPlaceholder": "Enter JWT token (optional)",
@@ -170,4 +170,3 @@
     "failedToLoad": "Failed to load data"
   }
 }
-

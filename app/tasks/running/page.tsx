@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 /**
  * Running Tasks Page
  * 
@@ -19,19 +21,21 @@ export default function RunningTasksPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { data: runningTasks, isLoading } = useQuery({
+  const { data: runningTasksResult, isLoading } = useQuery({
     queryKey: ['running-tasks'],
     queryFn: () => apiClient.getRunningTasks(),
     refetchInterval: 3000, // Refresh every 3 seconds
   });
 
+  const runningTasks = runningTasksResult?.tasks || [];
+
   const cancelMutation = useMutation({
     mutationFn: (taskIds: string[]) => apiClient.cancelTasks(taskIds),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['running-tasks'] });
       notifications.show({
         title: t('common.success'),
-        message: 'Task cancelled successfully',
+        message: data.results?.length ? `${data.results.length} task(s) cancelled` : 'Task cancelled successfully',
         color: 'green',
       });
     },
@@ -109,4 +113,3 @@ export default function RunningTasksPage() {
     </Container>
   );
 }
-

@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 /**
  * Task List/Detail Page
  * 
@@ -41,13 +43,14 @@ function TaskListPageContent() {
   const sseCleanupRefs = useRef<Map<string, () => void>>(new Map());
 
   // List tasks - default to root only
-  const { data: tasks, isLoading } = useQuery({
+  const { data: tasksResult, isLoading } = useQuery({
     queryKey: ['tasks', searchQuery, statusFilter, viewMode],
     queryFn: () => apiClient.listTasks({ 
       status: statusFilter,
-      root_only: viewMode === 'root' 
     }),
   });
+
+  const tasks = tasksResult?.tasks || [];
 
   // Check demo init status - wait for auto-login to complete before calling
   const { data: demoInitStatus, isLoading: isLoadingDemoStatus, error: demoStatusError } = useQuery({
@@ -195,9 +198,10 @@ function TaskListPageContent() {
 
   // Cleanup all SSE connections on unmount
   useEffect(() => {
+    const cleanupRefs = sseCleanupRefs.current;
     return () => {
-      sseCleanupRefs.current.forEach((cleanup) => cleanup());
-      sseCleanupRefs.current.clear();
+      cleanupRefs.forEach((cleanup) => cleanup());
+      cleanupRefs.clear();
     };
   }, []);
 
@@ -207,7 +211,8 @@ function TaskListPageContent() {
       return childrenCache[parentId];
     }
     try {
-      const children = await apiClient.getTaskChildren(parentId);
+      const result = await apiClient.getTaskChildren(parentId);
+      const children = result.children || [];
       setChildrenCache(prev => ({ ...prev, [parentId]: children }));
       return children;
     } catch (error: any) {
@@ -881,4 +886,3 @@ export default function TaskListPage() {
     </Suspense>
   );
 }
-

@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 /**
  * Use Demo Context
  * 
@@ -59,4 +61,3 @@ export function useUseDemo() {
   }
   return context;
 }
-
