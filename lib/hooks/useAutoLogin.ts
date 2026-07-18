@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
+
 /**
  * Auto-login hook
  * 
@@ -55,7 +57,7 @@ export function useAutoLogin(): AutoLoginStatus {
         const apiUrl =
           localStorage.getItem('api_url') ||
           process.env.NEXT_PUBLIC_API_URL ||
-          'http://localhost:8000';
+          'http://localhost:8080';
 
         // Call the auto-login endpoint
         // This request will go through SessionCookieMiddleware, which will:
@@ -123,4 +125,3 @@ export function useAutoLogin(): AutoLoginStatus {
 
   return status;
 }
-

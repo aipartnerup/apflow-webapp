@@ -8,7 +8,6 @@
 
 import { Card, Text, Badge, Group, Stack } from '@mantine/core';
 import { Task } from '@/lib/api/apflow';
-import { useTranslation } from 'react-i18next';
 import { IconChevronRight } from '@tabler/icons-react';
 
 interface TaskTreeViewProps {
@@ -17,8 +16,6 @@ interface TaskTreeViewProps {
 }
 
 export function TaskTreeView({ task, level = 0 }: TaskTreeViewProps) {
-  const { t } = useTranslation();
-
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'completed':
@@ -78,4 +75,3 @@ export function TaskTreeView({ task, level = 0 }: TaskTreeViewProps) {
     </Stack>
   );
 }
-

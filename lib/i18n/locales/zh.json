@@ -85,7 +85,7 @@
     "title": "设置",
     "api": "API配置",
     "apiUrl": "API基础URL",
-    "apiUrlPlaceholder": "http://localhost:8000",
+    "apiUrlPlaceholder": "http://localhost:8080",
     "authentication": "认证",
     "authToken": "认证令牌",
     "authTokenPlaceholder": "输入JWT令牌（可选）",
@@ -170,4 +170,3 @@
     "failedToLoad": "加载数据失败"
   }
 }
-

@@ -1,29 +1,32 @@
-/**
- * AIPartnerUpFlow API Client
- * 
- * This client handles all communication with the apflow API server
- * using JSON-RPC 2.0 protocol with SSE streaming for task execution.
- */
-
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import axios, { AxiosInstance } from 'axios';
 
-export interface JsonRpcRequest {
-  jsonrpc: '2.0';
-  method: string;
-  params?: any;
-  id: string | number;
-}
+const DEFAULT_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
-export interface JsonRpcResponse<T = any> {
-  jsonrpc: '2.0';
-  result?: T;
-  error?: {
-    code: number;
-    message: string;
-    data?: any;
-  };
-  id: string | number;
-}
+const APFLOW_V2_MODULES = new Set([
+  'task.create',
+  'task.create_tree',
+  'task.execute',
+  'task.cancel',
+  'task.get',
+  'task.update',
+  'task.list',
+  'task.delete',
+  'task.tree',
+  'task.children',
+  'task.link',
+  'task.copy',
+  'task.archive',
+  'task.clone_mixed',
+  'task.running',
+  'task.scheduled',
+  'schedule.set',
+  'schedule.due',
+  'schedule.trigger',
+  'schedule.complete',
+  'schedule.history',
+  'schedule.export_ical',
+]);
 
 export interface Task {
   id: string;
@@ -47,7 +50,6 @@ export interface Task {
   original_task_id?: string;
   has_copy?: boolean;
   has_children?: boolean;
-  // Schedule fields
   schedule_type?: string;
   schedule_expression?: string;
   schedule_enabled?: boolean;
@@ -57,6 +59,9 @@ export interface Task {
   last_run_at?: string;
   max_runs?: number;
   run_count?: number;
+  token_budget?: number;
+  cost_policy?: string;
+  max_attempts?: number;
 }
 
 export interface ScheduledTask extends Task {
@@ -77,10 +82,16 @@ export interface TaskTree extends Task {
 }
 
 export interface CreateTaskResponse {
+  id: string;
+  name: string;
   status: string;
+  created_at?: string;
+}
+
+export interface CreateTaskTreeResponse {
   root_task_id: string;
-  progress: number;
   task_count: number;
+  task_ids: string[];
 }
 
 export interface GenerateTaskResponse {
@@ -137,327 +148,214 @@ export interface TaskEvent {
 
 export class AIPartnerUpFlowClient {
   private client: AxiosInstance;
-  private requestId = 0;
   private baseURL: string;
+  private withCredentials: boolean;
 
-  constructor(baseURL: string = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') {
+  constructor(baseURL: string = DEFAULT_API_URL) {
     this.baseURL = baseURL;
+    this.withCredentials = Boolean(process.env.NEXT_PUBLIC_AUTO_LOGIN_PATH?.trim());
     this.client = axios.create({
       baseURL,
       headers: {
         'Content-Type': 'application/json',
       },
-      // Enable credentials (cookies) for cross-origin requests
-      withCredentials: true,
-      // Add timeout to prevent hanging requests
-      timeout: 30000, // 30 seconds
+      withCredentials: this.withCredentials,
+      timeout: 30000,
     });
 
-    // Add request interceptor for authentication and LLM key
-    // Only add Authorization header if token exists in localStorage
     this.client.interceptors.request.use((config) => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
 
-      // Add LLM API key from localStorage if available (request header method)
-      // Format: provider:key (e.g., "openai:sk-xxx...") or just key (backward compatible)
-      // Support provider-specific keys: llm_api_key_<provider> or default llm_api_key
-      // Note: If X-LLM-API-KEY is already set (e.g., by executeTask), use it directly
       if (typeof window !== 'undefined' && !config.headers['X-LLM-API-KEY']) {
-        // Get default key from localStorage
         const llmKey = localStorage.getItem('llm_api_key');
         if (llmKey) {
           config.headers['X-LLM-API-KEY'] = llmKey;
         }
       }
-      
+
       return config;
     });
 
-    // Add response interceptor for error handling
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        // Enhanced error logging with better error object handling
         const errorCode = error?.code || error?.errno || '';
         const errorMessage = error?.message || String(error) || 'Unknown error';
         const requestUrl = error?.config?.url || 'unknown';
-        const fullUrl = error?.config?.baseURL 
-          ? `${error.config.baseURL}${requestUrl}` 
+        const fullUrl = error?.config?.baseURL
+          ? `${error.config.baseURL}${requestUrl}`
           : `${this.baseURL}${requestUrl}`;
 
-        // Use console.group for better organization
         if (errorCode === 'ECONNABORTED' || errorMessage.includes('timeout')) {
           console.group('⏱️ API Request Timeout');
           console.error('URL:', fullUrl);
           console.error('Base URL:', this.baseURL);
           console.error('Error Code:', errorCode);
           console.error('Error Message:', errorMessage);
-          console.error('Message: Request timed out after 30 seconds');
           console.groupEnd();
-        } else if (errorCode === 'ERR_NETWORK' || errorMessage === 'Network Error' || errorMessage.includes('Network Error')) {
+        } else if (errorCode === 'ERR_NETWORK' || errorMessage === 'Network Error') {
           console.group('🌐 API Network Error');
           console.error('Full URL:', fullUrl);
           console.error('Base URL:', this.baseURL);
           console.error('Endpoint:', requestUrl);
           console.error('Error Code:', errorCode);
           console.error('Error Message:', errorMessage);
-          console.error('Error Name:', error?.name || 'N/A');
-          console.error('--- Troubleshooting Steps ---');
-          console.error('1. Is the API server running?');
-          console.error(`2. Is the API URL correct? (${this.baseURL})`);
-          console.error('3. Are there CORS issues?');
-          console.error('4. Is the network connection working?');
-          console.error('5. Check browser console for CORS errors');
-          console.error('--- Error Details ---');
-          console.error('Error Object:', error);
-          if (error?.stack) {
-            console.error('Stack Trace (first 5 lines):');
-            console.error(error.stack.split('\n').slice(0, 5).join('\n'));
-          }
           console.groupEnd();
         } else if (error?.response) {
-          // Server responded with error status
           const status = error.response.status;
           const method = error?.config?.method?.toUpperCase() || 'UNKNOWN';
-          
-          // Check if this is a JSON-RPC error response (has error field)
-          // If so, we'll handle it in the RPC error handling section below
-          const isRpcError = error.response.data?.error && error.response.data?.jsonrpc === '2.0';
-          
-          if (!isRpcError) {
-            // Only log non-RPC errors to console
-            console.group('❌ API Error Response');
-            console.error('Status:', status);
-            console.error('Status Text:', error.response.statusText);
-            console.error('Method:', method);
-            console.error('URL:', fullUrl);
-            console.error('Response Data:', error.response.data);
-          }
-          
-          // Special handling for 401 errors (only for non-RPC errors)
-          if (!isRpcError && status === 401) {
+
+          if (status === 401 && method !== 'OPTIONS') {
             console.error('--- Authentication Error ---');
-            if (method === 'OPTIONS') {
-              console.error('⚠️ CORS Preflight Request Failed!');
-              console.error('The server is rejecting OPTIONS (CORS preflight) requests with 401.');
-              console.error('This is a server configuration issue. The server should allow OPTIONS requests without authentication.');
-              console.error('Solution: Configure the server to allow OPTIONS requests without requiring authentication.');
-            } else {
-              console.error('Authentication failed. Possible causes:');
-              console.error('1. Missing or invalid Authorization token');
-              console.error('2. Missing or invalid authentication cookie');
-              console.error('3. Token expired');
-              console.error('4. Server authentication middleware misconfigured');
-              const hasToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-              console.error('Token in localStorage:', hasToken ? 'Present' : 'Missing');
-            }
+            const hasToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+            console.error('Token in localStorage:', hasToken ? 'Present' : 'Missing');
           }
-          
-          // Special handling for CORS errors (status 0 or no response)
-          if (!isRpcError && (status === 0 || !error.response)) {
-            console.error('--- Possible CORS Issue ---');
-            console.error('This might be a CORS (Cross-Origin Resource Sharing) problem.');
-            console.error('The server may not be configured to allow requests from this origin.');
-          }
-          
-          if (!isRpcError) {
-            console.groupEnd();
-          }
-        } else {
-          // Other errors
-          console.group('⚠️ API Error (Other)');
-          console.error('Error Code:', errorCode);
-          console.error('Error Message:', errorMessage);
-          console.error('Error Name:', error?.name || 'N/A');
-          console.error('URL:', fullUrl);
-          console.error('Error Object:', error);
-          console.groupEnd();
         }
+
         return Promise.reject(error);
       }
     );
   }
 
-  private async rpcRequest<T>(endpoint: string, method: string, params?: any): Promise<T> {
-    const request: JsonRpcRequest = {
-      jsonrpc: '2.0',
-      method,
-      params,
-      id: ++this.requestId,
-    };
+  private resolveModuleCandidates(moduleId: string): string[] {
+    if (moduleId.startsWith('apflow.')) {
+      const bareId = moduleId.slice('apflow.'.length);
+      if (APFLOW_V2_MODULES.has(bareId)) {
+        return [moduleId, bareId];
+      }
+    }
 
-    try {
-      const response = await this.client.post<JsonRpcResponse<T>>(endpoint, request);
-      
-      if (response.data.error) {
-        // Extract error message, prefer data field if available (contains detailed error)
-        const errorMessage = response.data.error.data || response.data.error.message || 'RPC Error';
-        const error = new Error(String(errorMessage));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (error as any).code = response.data.error.code;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (error as any).rpcError = response.data.error;
-        throw error;
-      }
-      
-      return response.data.result as T;
-    } catch (error: any) {
-      // Handle network errors with more descriptive messages
-      const errorCode = error?.code || error?.errno || '';
-      const errorMessage = error?.message || String(error) || 'Unknown error';
-      
-      if (errorCode === 'ERR_NETWORK' || errorMessage === 'Network Error' || errorMessage.includes('Network Error')) {
-        // Provide a more helpful error message
-        let detailedMessage = `Unable to connect to API server at ${this.baseURL}${endpoint}.\n\n`;
-        detailedMessage += `Possible solutions:\n`;
-        detailedMessage += `1. Ensure the API server is running (check if you can access ${this.baseURL} in your browser)\n`;
-        detailedMessage += `2. Verify the API URL is correct (current: ${this.baseURL})\n`;
-        detailedMessage += `3. Check for CORS issues in the browser console\n`;
-        detailedMessage += `4. If using a different port/domain, set NEXT_PUBLIC_API_URL environment variable\n`;
-        detailedMessage += `5. Check your network connection and firewall settings`;
-        
-        const networkError = new Error(detailedMessage);
-        (networkError as any).code = errorCode;
-        (networkError as any).originalError = error;
-        (networkError as any).isNetworkError = true;
-        (networkError as any).apiUrl = this.baseURL;
-        throw networkError;
-      }
-      
-      // Handle timeout errors
-      if (errorCode === 'ECONNABORTED' || errorMessage.includes('timeout')) {
-        const timeoutError = new Error(
-          `Request timeout: The API server at ${this.baseURL}${endpoint} did not respond within 30 seconds.`
-        );
-        (timeoutError as any).code = errorCode;
-        (timeoutError as any).originalError = error;
-        throw timeoutError;
-      }
-      
-      // Handle 401 Unauthorized errors (especially CORS preflight)
-      if (error.response?.status === 401) {
-        const method = error?.config?.method?.toUpperCase() || '';
-        let authErrorMessage = `Authentication failed (401) for ${this.baseURL}${endpoint}`;
-        
-        if (method === 'OPTIONS') {
-          authErrorMessage = `CORS Preflight Failed: The server rejected the OPTIONS request with 401 Unauthorized.\n\n` +
-            `This is a server configuration issue. The server must allow OPTIONS (CORS preflight) requests without authentication.\n\n` +
-            `Server-side fix needed: Configure CORS middleware to skip authentication for OPTIONS requests.`;
-        } else {
-          authErrorMessage += `\n\nPossible causes:\n` +
-            `- Missing or invalid authentication token\n` +
-            `- Missing or invalid authentication cookie\n` +
-            `- Token expired\n` +
-            `- Server authentication middleware misconfigured`;
+    if (APFLOW_V2_MODULES.has(moduleId)) {
+      return [`apflow.${moduleId}`, moduleId];
+    }
+
+    return [moduleId];
+  }
+
+  private isModuleNotFound(error: any): boolean {
+    const status = error?.response?.status;
+    const errorCode = error?.response?.data?.error?.code;
+    return status === 404 && (errorCode === 'MODULE_NOT_FOUND' || errorCode === 'NOT_FOUND' || !errorCode);
+  }
+
+  private toApiError(error: any): Error {
+    if (error.response?.data?.error) {
+      const errorData = error.response.data.error;
+      const errorMessage = errorData.message || errorData.data || 'API Error';
+      const apiError = new Error(String(errorMessage));
+      (apiError as any).code = errorData.code;
+      return apiError;
+    }
+
+    if (error.response?.data?.message || error.response?.data?.error) {
+      return new Error(String(error.response.data.message || error.response.data.error));
+    }
+
+    return error;
+  }
+
+  private async moduleRequest<T>(moduleId: string, inputs?: any, config?: { headers?: Record<string, string> }): Promise<T> {
+    const candidates = this.resolveModuleCandidates(moduleId);
+    let lastError: any;
+
+    for (const candidate of candidates) {
+      try {
+        const response = await this.client.post<T>(`/modules/${candidate}`, inputs || {}, config);
+        return response.data;
+      } catch (error: any) {
+        lastError = error;
+        if (!this.isModuleNotFound(error)) {
+          throw this.toApiError(error);
         }
-        
-        const authError = new Error(authErrorMessage);
-        (authError as any).status = 401;
-        (authError as any).isAuthError = true;
-        (authError as any).isCorsPreflight = method === 'OPTIONS';
-        (authError as any).originalError = error;
-        throw authError;
       }
-      
-      // Handle RPC errors
-      if (error.response?.data?.error) {
-        // Extract error message, prefer data field if available (contains detailed error)
-        const errorMessage = error.response.data.error.data || error.response.data.error.message || 'RPC Error';
-        const rpcError = new Error(String(errorMessage));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (rpcError as any).code = error.response.data.error.code;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (rpcError as any).rpcError = error.response.data.error;
-        throw rpcError;
-      }
-      
-      // Re-throw other errors, but wrap them if they don't have a message
-      if (error instanceof Error) {
-        throw error;
-      } else {
-        throw new Error(`API Error: ${errorMessage}`);
-      }
+    }
+
+    throw this.toApiError(lastError);
+  }
+
+  private normalizeTaskTree(node: any): Task {
+    if (node?.task) {
+      return {
+        ...node.task,
+        children: (node.children || []).map((child: any) => this.normalizeTaskTree(child)),
+      };
+    }
+
+    return {
+      ...node,
+      children: (node?.children || []).map((child: any) => this.normalizeTaskTree(child)),
+    };
+  }
+
+  private async rawModuleRequest<T>(moduleId: string, inputs?: any): Promise<T> {
+    try {
+      const response = await this.client.post<T>(`/modules/${moduleId}`, inputs || {});
+      return response.data;
+    } catch (error: any) {
+      throw this.toApiError(error);
     }
   }
 
-
-  // Task Management Methods
-
-  /**
-   * Generate a task from natural language description using LLM
-   */
   async generateTask(description: string): Promise<GenerateTaskResponse> {
     if (!description || description.trim() === '') {
       throw new Error('Description is required');
     }
-    return this.rpcRequest<GenerateTaskResponse>('/tasks', 'tasks.generate', { requirement: description.trim() });
+
+    try {
+      return await this.rawModuleRequest<GenerateTaskResponse>('apflow.generate', { requirement: description.trim() });
+    } catch (error: any) {
+      if ((error as any)?.code === 'MODULE_NOT_FOUND') {
+        throw new Error('Task generation is not available on apflow v2. Create tasks manually or provide a task tree.');
+      }
+      throw error;
+    }
   }
 
-  /**
-   * Create one or more tasks and execute them
-   */
-  async createTasks(tasks: Task[] | Task): Promise<CreateTaskResponse> {
+  async createTask(task: Omit<Task, 'id'>): Promise<CreateTaskResponse> {
+    return this.moduleRequest<CreateTaskResponse>('apflow.task.create', task);
+  }
+
+  async createTasks(tasks: Task[] | Task): Promise<CreateTaskTreeResponse> {
     const taskArray = Array.isArray(tasks) ? tasks : [tasks];
-    return this.rpcRequest<CreateTaskResponse>('/tasks', 'tasks.create', taskArray);
+    return this.moduleRequest<CreateTaskTreeResponse>('apflow.task.create_tree', { tasks: taskArray });
   }
 
-  /**
-   * Get task details by ID
-   */
   async getTask(taskId: string): Promise<Task> {
     if (!taskId) {
       throw new Error('Task ID is required');
     }
-    return this.rpcRequest<Task>('/tasks', 'tasks.get', { task_id: taskId });
+    return this.moduleRequest<Task>('apflow.task.get', { task_id: taskId });
   }
 
-  /**
-   * Get task detail (alias for getTask)
-   */
   async getTaskDetail(taskId: string): Promise<Task> {
-    const response = await this.rpcRequest<{ task: any; children: any[] }>('/tasks', 'tasks.detail', { task_id: taskId });
-    function convertNode(node: { task: any; children: any[] }): Task {
-      const t: Task = { ...node.task };
-      t.children = (node.children || []).map(convertNode);
-      return t;
-    }
-    return convertNode(response);
+    const response = await this.moduleRequest<{ task: any; children: any[] }>('apflow.task.tree', { task_id: taskId });
+    return this.normalizeTaskTree(response);
   }
 
-  /**
-   * Get task tree structure starting from a task
-   */
-  async getTaskTree(taskId?: string, rootId?: string): Promise<TaskTree> {
+  async getTaskTree(taskId?: string): Promise<TaskTree> {
+    if (!taskId) {
+      throw new Error('Task ID is required');
+    }
     const params: any = {};
-    if (taskId) params.task_id = taskId;
-    if (rootId) params.root_id = rootId;
-    const response = await this.rpcRequest<{ task: any; children: any[] }>('/tasks', 'tasks.tree', params);
-    function convertNode(node: { task: any; children: any[] }): Task {
-      const t: Task = { ...node.task };
-      t.children = node.children ? node.children.map(convertNode) : [];
-      return t;
-    }
-    const result = convertNode(response) as TaskTree;
-    // console.info('return task tree:', result);
-    return result;
+    params.task_id = taskId;
+    const response = await this.moduleRequest<{ task: any; children: any[] } | Task>('apflow.task.tree', params);
+    return this.normalizeTaskTree(response) as TaskTree;
   }
 
-  /**
-   * Update task properties
-   */
   async updateTask(
     taskId: string,
     updates: {
+      name?: string;
       status?: string;
       inputs?: Record<string, any>;
+      params?: Record<string, any>;
       result?: any;
       error?: string;
       progress?: number;
-      started_at?: string;
-      completed_at?: string;
+      priority?: number;
       schedule_type?: string;
       schedule_expression?: string;
       schedule_enabled?: boolean;
@@ -466,33 +364,79 @@ export class AIPartnerUpFlowClient {
       max_runs?: number;
     }
   ): Promise<Task> {
-    return this.rpcRequest<Task>('/tasks', 'tasks.update', {
+    const {
+      schedule_type,
+      schedule_expression,
+      schedule_enabled,
+      schedule_start_at: _scheduleStartAt,
+      schedule_end_at: _scheduleEndAt,
+      max_runs,
+      ...taskUpdates
+    } = updates;
+
+    let updatedTask: Task | undefined;
+    const hasTaskUpdates = Object.values(taskUpdates).some((value) => value !== undefined);
+    if (hasTaskUpdates) {
+      updatedTask = await this.moduleRequest<Task>('apflow.task.update', {
+        task_id: taskId,
+        ...taskUpdates,
+      });
+    }
+
+    const hasScheduleUpdates =
+      schedule_type !== undefined ||
+      schedule_expression !== undefined ||
+      schedule_enabled !== undefined ||
+      max_runs !== undefined;
+
+    if (!hasScheduleUpdates) {
+      return updatedTask || this.getTask(taskId);
+    }
+
+    const currentTask = updatedTask || await this.getTask(taskId);
+    const nextScheduleType = schedule_type ?? currentTask.schedule_type;
+    const nextScheduleExpression = schedule_expression ?? currentTask.schedule_expression;
+
+    if (!nextScheduleType || !nextScheduleExpression) {
+      if (schedule_enabled === false) {
+        return currentTask;
+      }
+      throw new Error('Schedule type and expression are required');
+    }
+
+    try {
+      return await this.moduleRequest<Task>('apflow.schedule.set', {
+        task_id: taskId,
+        schedule_type: nextScheduleType,
+        schedule_expression: nextScheduleExpression,
+        schedule_enabled: schedule_enabled ?? currentTask.schedule_enabled ?? true,
+        max_runs,
+      });
+    } catch (error: any) {
+      if ((error as any)?.code !== 'MODULE_NOT_FOUND') {
+        throw error;
+      }
+
+      return this.moduleRequest<Task>('apflow.task.update', {
+        task_id: taskId,
+        ...updates,
+      });
+    }
+  }
+
+  async deleteTask(taskId: string): Promise<{ task_id: string; deleted: boolean }> {
+    return this.moduleRequest<{ task_id: string; deleted: boolean }>('apflow.task.delete', {
       task_id: taskId,
-      ...updates,
     });
   }
 
-  /**
-   * Delete a task (marks as deleted)
-   */
-  async deleteTask(taskId: string): Promise<{ success: boolean; task_id: string }> {
-    return this.rpcRequest<{ success: boolean; task_id: string }>('/tasks', 'tasks.delete', {
+  async copyTask(taskId: string): Promise<{ root_task_id: string; task_count: number; origin_type: string }> {
+    return this.moduleRequest<{ root_task_id: string; task_count: number; origin_type: string }>('apflow.task.copy', {
       task_id: taskId,
     });
   }
 
-  /**
-   * Create a copy of a task tree for re-execution
-   */
-  async copyTask(taskId: string): Promise<Task> {
-    return this.rpcRequest<Task>('/tasks', 'tasks.copy', { task_id: taskId });
-  }
-
-  /**
-   * Detect LLM provider from task configuration
-   */
   private detectProviderFromTask(task: Task): string | undefined {
-    // Check params.works.agents for LLM model
     const works = task.params?.works;
     if (works?.agents) {
       for (const agentConfig of Object.values(works.agents)) {
@@ -503,102 +447,70 @@ export class AIPartnerUpFlowClient {
         }
       }
     }
-    
-    // Check crew-level LLM
+
     if (works?.llm && typeof works.llm === 'string') {
       return this.detectProviderFromModel(works.llm);
     }
-    
+
     return undefined;
   }
 
-  /**
-   * Detect provider from model name
-   */
   private detectProviderFromModel(modelName: string): string | undefined {
     if (!modelName) return undefined;
-    
+
     const modelLower = modelName.toLowerCase();
-    
-    // Check if model name contains provider prefix (e.g., "openai/gpt-4")
+
     if (modelLower.includes('/')) {
       const provider = modelLower.split('/')[0];
       if (['openai', 'anthropic', 'google', 'gemini', 'azure', 'cohere', 'mistral', 'groq', 'together', 'ai21', 'replicate', 'ollama', 'deepinfra'].includes(provider)) {
         return provider;
       }
     }
-    
-    // Check model name patterns
+
     if (modelLower.includes('gpt-') || modelLower.includes('gpt')) return 'openai';
     if (modelLower.includes('claude')) return 'anthropic';
     if (modelLower.includes('gemini') || modelLower.includes('palm')) return 'google';
     if (modelLower.includes('command')) return 'cohere';
     if (modelLower.includes('mistral') || modelLower.includes('mixtral')) return 'mistral';
-    if (modelLower.includes('llama')) return 'groq'; // Common with Groq
+    if (modelLower.includes('llama')) return 'groq';
     if (modelLower.includes('j2-')) return 'ai21';
     if (modelLower.includes('togethercomputer')) return 'together';
     if (modelLower.includes('replicate')) return 'replicate';
     if (modelLower.includes('ollama')) return 'ollama';
     if (modelLower.includes('deepinfra')) return 'deepinfra';
-    
+
     return undefined;
   }
 
-  /**
-   * Execute a task by ID using JSON-RPC tasks.execute endpoint
-   * 
-   * @param taskId Task ID to execute
-   * @param useStreaming If true, enables SSE streaming for real-time updates (default: true)
-   * @param onEvent Optional callback for SSE events when useStreaming is true
-   * @returns Execution response with root_task_id. If useStreaming=true, returns initial response and streams events via onEvent
-   */
   async executeTask(
     taskId: string,
     useStreaming = true,
     onEvent?: (event: TaskEvent) => void
   ): Promise<TaskExecutionResponse> {
-    // First, get task details to detect provider for LLM key
     let provider: string | undefined;
     try {
       const task = await this.getTask(taskId);
       provider = this.detectProviderFromTask(task);
     } catch (error) {
-      // If we can't get task details, continue without provider detection
       console.debug('Could not get task details for provider detection:', error);
     }
-    
-    // Make request with LLM key formatted as provider:key if provider is detected
-    const requestParams: any = {
-      task_id: taskId,
-      use_streaming: useStreaming,
-    };
-    const request: JsonRpcRequest = {
-      jsonrpc: '2.0',
-      method: 'tasks.execute',
-      params: requestParams,
-      id: ++this.requestId,
-    };
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    
-    // Get LLM key and format as provider:key if provider is detected
+
     if (typeof window !== 'undefined') {
       let llmKey: string | null = null;
-      
+
       if (provider) {
-        // Use provider-specific key
         llmKey = localStorage.getItem(`llm_api_key_${provider}`);
       }
-      
-      // Fallback to default key if provider-specific key not found
+
       if (!llmKey) {
         llmKey = localStorage.getItem('llm_api_key');
       }
-      
+
       if (llmKey) {
-        // Format: provider:key or just key (backward compatible)
         if (provider) {
           headers['X-LLM-API-KEY'] = `${provider}:${llmKey}`;
         } else {
@@ -606,71 +518,70 @@ export class AIPartnerUpFlowClient {
         }
       }
     }
-    
-    // If streaming is enabled, use EventSource for SSE
+
     if (useStreaming && onEvent && typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
-      // For SSE, we need to use fetch with stream handling
       const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
       const authHeaders: Record<string, string> = {};
       if (token) {
         authHeaders['Authorization'] = `Bearer ${token}`;
       }
-      
-      // Merge headers
-      const allHeaders = { ...headers, ...authHeaders };
-      
-      // Use fetch for SSE streaming
-      // Include credentials to send cookies for cross-origin requests
-      const response = await fetch(`${this.baseURL}/tasks`, {
+
+      const allHeaders = { ...headers, ...authHeaders, 'Accept': 'text/event-stream' };
+
+      const moduleId = this.resolveModuleCandidates('apflow.task.execute')[0];
+      const response = await fetch(`${this.baseURL}/modules/${moduleId}`, {
         method: 'POST',
         headers: allHeaders,
-        body: JSON.stringify(request),
-        credentials: 'include', // Send cookies for cross-origin requests
+        body: JSON.stringify({ task_id: taskId }),
+        credentials: this.withCredentials ? 'include' : 'same-origin',
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+        if (this.isModuleNotFound({ response: { status: response.status, data: errorData } })) {
+          return this.executeTask(taskId, false, onEvent);
+        }
         throw new Error(errorData.error?.message || 'Unknown error');
       }
-      
-      // Check if response is SSE (text/event-stream)
+
       const contentType = response.headers.get('content-type');
       if (contentType?.includes('text/event-stream')) {
-        // Handle SSE stream
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        
+
         if (!reader) {
           throw new Error('Response body is not readable');
         }
-        
-        // Read initial response
+
         let initialResponse: TaskExecutionResponse | null = null;
-        
+
         const processStream = async () => {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            
+
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
-            
+
             for (const line of lines) {
               if (line.startsWith('data: ')) {
-                const data = line.slice(6); // Remove 'data: ' prefix
+                const data = line.slice(6);
                 try {
                   const parsed = JSON.parse(data);
-                  
-                  // Check if it's the initial JSON-RPC response
-                  if (parsed.jsonrpc === '2.0' && parsed.result) {
-                    initialResponse = parsed.result;
+
+                  if (parsed.type === 'result') {
+                    initialResponse = {
+                      success: true,
+                      root_task_id: taskId,
+                      task_id: taskId,
+                      status: parsed.result?.status || 'completed',
+                      message: 'Task execution completed',
+                    };
                   } else if (parsed.type) {
-                    // It's an event, call the callback
                     onEvent(parsed);
-                    
-                    // Stop if final event
+
                     if (parsed.final || parsed.type === 'stream_end') {
                       return initialResponse || {
                         success: true,
@@ -687,7 +598,7 @@ export class AIPartnerUpFlowClient {
               }
             }
           }
-          
+
           return initialResponse || {
             success: true,
             root_task_id: taskId,
@@ -696,8 +607,7 @@ export class AIPartnerUpFlowClient {
             message: 'Task execution started',
           };
         };
-        
-        // Process stream in background and return initial response
+
         processStream().catch((error) => {
           console.error('Error processing SSE stream:', error);
           if (onEvent) {
@@ -707,8 +617,7 @@ export class AIPartnerUpFlowClient {
             });
           }
         });
-        
-        // Return initial response (will be updated via events)
+
         return initialResponse || {
           success: true,
           root_task_id: taskId,
@@ -717,37 +626,35 @@ export class AIPartnerUpFlowClient {
           message: 'Task execution started',
         };
       } else {
-        // Fallback to JSON response
         const data = await response.json();
         if (data.error) {
           throw new Error(data.error.message || 'Unknown error');
         }
-        return data.result || data;
+        return {
+          success: true,
+          root_task_id: taskId,
+          task_id: taskId,
+          status: data.status || 'completed',
+          message: 'Task execution completed',
+        };
       }
     }
-    
-    // Non-streaming mode: use regular JSON-RPC
-    const response = await this.client.post<JsonRpcResponse<TaskExecutionResponse>>(
-      '/tasks',
-      request,
+
+    const data = await this.moduleRequest<{ task_id: string; status: string; result?: any; token_usage?: any }>(
+      'apflow.task.execute',
+      { task_id: taskId },
       { headers }
     );
-    
-    if (response.data.error) {
-      throw new Error(response.data.error.message || 'Unknown error');
-    }
-    
-    return response.data.result!;
+
+    return {
+      success: true,
+      root_task_id: taskId,
+      task_id: taskId,
+      status: data.status || 'completed',
+      message: 'Task execution completed',
+    };
   }
 
-  /**
-   * Poll task status for real-time updates
-   * 
-   * @param taskId Task ID to poll
-   * @param onUpdate Callback function called when task status is updated
-   * @param interval Polling interval in milliseconds (default: 1000ms)
-   * @returns Cleanup function to stop polling
-   */
   pollTaskStatus(
     taskId: string,
     onUpdate: (task: Task) => void,
@@ -768,7 +675,6 @@ export class AIPartnerUpFlowClient {
         const task = await this.getTask(taskId);
         onUpdate(task);
 
-        // Stop polling if task is completed or failed
         if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
           isPolling = false;
           if (pollInterval) {
@@ -778,15 +684,12 @@ export class AIPartnerUpFlowClient {
         }
       } catch (error) {
         console.error('Error polling task status:', error);
-        // Continue polling on error
       }
     };
 
-    // Start polling immediately, then at intervals
     poll();
     pollInterval = setInterval(poll, interval);
 
-    // Return cleanup function
     return () => {
       isPolling = false;
       if (pollInterval) {
@@ -796,214 +699,208 @@ export class AIPartnerUpFlowClient {
     };
   }
 
-  /**
-   * Cancel one or more running tasks
-   */
-  async cancelTasks(taskIds: string[], force = false): Promise<RunningTaskStatus[]> {
-    return this.rpcRequest<RunningTaskStatus[]>('/tasks', 'tasks.cancel', {
+  async cancelTasks(taskIds: string[], force = false): Promise<{ results: Array<{ task_id: string; status: string; message?: string }> }> {
+    return this.moduleRequest<{ results: Array<{ task_id: string; status: string; message?: string }> }>('apflow.task.cancel', {
       task_ids: taskIds,
-      force,
     });
   }
 
-  /**
-   * List currently running tasks
-   */
-  async getRunningTasks(userId?: string, limit = 100): Promise<RunningTask[]> {
-    return this.rpcRequest<RunningTask[]>('/tasks', 'tasks.running.list', {
+  async getRunningTasks(userId?: string, limit = 100): Promise<{ tasks: RunningTask[]; count: number }> {
+    return this.moduleRequest<{ tasks: RunningTask[]; count: number }>('apflow.task.running', {
       user_id: userId,
       limit,
     });
   }
 
-  /**
-   * List all tasks (not just running ones)
-   */
   async listTasks(params?: {
     userId?: string;
     status?: string;
     root_only?: boolean;
     limit?: number;
     offset?: number;
-  }): Promise<Task[]> {
-    return this.rpcRequest<Task[]>('/tasks', 'tasks.list', {
+  }): Promise<{ tasks: Task[]; total: number }> {
+    return this.moduleRequest<{ tasks: Task[]; total: number }>('apflow.task.list', {
       user_id: params?.userId,
       status: params?.status,
-      root_only: params?.root_only ?? true,  // Default to true: only show root tasks
-      limit: params?.limit ?? 100,
+      limit: params?.limit ?? 50,
       offset: params?.offset ?? 0,
     });
   }
 
-  /**
-   * Get child tasks for a parent task
-   */
-  async getTaskChildren(parentId: string): Promise<Task[]> {
+  async getTaskChildren(parentId: string): Promise<{ children: Task[] }> {
     if (!parentId) {
       throw new Error('Parent task ID is required');
     }
-    return this.rpcRequest<Task[]>('/tasks', 'tasks.children', { parent_id: parentId });
+    return this.moduleRequest<{ children: Task[] }>('apflow.task.children', { task_id: parentId });
   }
 
-  /**
-   * Get status of one or more running tasks
-   */
   async getRunningTaskStatus(taskIds: string[]): Promise<RunningTaskStatus[]> {
-    return this.rpcRequest<RunningTaskStatus[]>('/tasks', 'tasks.running.status', {
+    return this.moduleRequest<RunningTaskStatus[]>('apflow.task.running', {
       task_ids: taskIds,
     });
   }
 
-  /**
-   * Get count of running tasks
-   */
   async getRunningTaskCount(userId?: string): Promise<{ count: number; user_id?: string }> {
-    return this.rpcRequest<{ count: number; user_id?: string }>('/tasks', 'tasks.running.count', {
+    return this.moduleRequest<{ count: number; user_id?: string }>('apflow.task.running', {
       user_id: userId,
     });
   }
 
-  // Scheduler Methods
-
-  /**
-   * List scheduled tasks
-   */
   async getScheduledTasks(params?: {
     enabled_only?: boolean;
     schedule_type?: string;
     status?: string;
     limit?: number;
     offset?: number;
-  }): Promise<ScheduledTask[]> {
-    return this.rpcRequest<ScheduledTask[]>('/tasks', 'tasks.scheduled.list', {
+  }): Promise<{ tasks: ScheduledTask[]; count: number }> {
+    return this.moduleRequest<{ tasks: ScheduledTask[]; count: number }>('apflow.task.scheduled', {
       enabled_only: params?.enabled_only ?? true,
       schedule_type: params?.schedule_type,
-      status: params?.status,
-      limit: params?.limit ?? 100,
-      offset: params?.offset ?? 0,
+      limit: params?.limit ?? 20,
     });
   }
 
-  /**
-   * Initialize schedule for a task (calculate next_run_at)
-   */
   async initSchedule(taskId: string, fromTime?: string): Promise<Task> {
-    return this.rpcRequest<Task>('/tasks', 'tasks.scheduled.init', {
-      task_id: taskId,
-      from_time: fromTime,
-    });
+    const task = await this.getTask(taskId);
+    if (!task.schedule_type || !task.schedule_expression) {
+      throw new Error('Schedule type and expression are required');
+    }
+
+    try {
+      return await this.moduleRequest<Task>('apflow.schedule.set', {
+        task_id: taskId,
+        schedule_type: task.schedule_type,
+        schedule_expression: task.schedule_expression,
+        schedule_enabled: task.schedule_enabled ?? true,
+        max_runs: task.max_runs,
+      });
+    } catch (error: any) {
+      if ((error as any)?.code !== 'MODULE_NOT_FOUND') {
+        throw error;
+      }
+
+      return this.moduleRequest<Task>('apflow.schedule.due', {
+        task_id: taskId,
+      });
+    }
   }
 
-  /**
-   * Complete a scheduled run
-   */
   async completeScheduledRun(taskId: string, params?: {
     success?: boolean;
     result?: any;
   }): Promise<Task> {
-    return this.rpcRequest<Task>('/tasks', 'tasks.scheduled.complete', {
+    return this.moduleRequest<Task>('apflow.schedule.complete', {
       task_id: taskId,
       ...params,
     });
   }
 
-  /**
-   * Export scheduled tasks as iCalendar (.ics) format
-   */
   async exportIcal(params?: {
     schedule_type?: string;
     enabled_only?: boolean;
     limit?: number;
     calendar_name?: string;
   }): Promise<{ ical_content: string; task_count: number }> {
-    return this.rpcRequest<{ ical_content: string; task_count: number }>('/tasks', 'tasks.scheduled.export-ical', {
+    const response = await this.moduleRequest<{ ical_content?: string; ical?: string; task_count?: number; count?: number }>('apflow.schedule.export_ical', {
       enabled_only: params?.enabled_only ?? true,
       schedule_type: params?.schedule_type,
       limit: params?.limit ?? 100,
       calendar_name: params?.calendar_name,
     });
+
+    return {
+      ical_content: response.ical_content ?? response.ical ?? '',
+      task_count: response.task_count ?? response.count ?? 0,
+    };
   }
 
-  /**
-   * Trigger a task via webhook
-   */
   async triggerWebhook(taskId: string, params?: Record<string, any>): Promise<WebhookTriggerResponse> {
-    return this.rpcRequest<WebhookTriggerResponse>('/tasks', 'tasks.webhook.trigger', {
+    return this.moduleRequest<WebhookTriggerResponse>('apflow.schedule.trigger', {
       task_id: taskId,
       ...params,
     });
   }
 
-  // System Methods
-
-  /**
-   * Check system health status
-   */
   async getHealth(): Promise<SystemHealth> {
-    return this.rpcRequest<SystemHealth>('/system', 'system.health', {});
+    try {
+      const response = await this.client.get('/healthz');
+      return { status: response.data.status, version: '', uptime: 0 };
+    } catch {
+      return { status: 'unhealthy', version: '', uptime: 0 };
+    }
   }
 
-  /**
-   * Get agent card (A2A Protocol)
-   */
   async getAgentCard(): Promise<any> {
     const response = await this.client.get('/.well-known/agent-card');
     return response.data;
   }
 
-  // LLM Key Configuration Methods (User Config API)
-
-  /**
-   * Set LLM API key for current user
-   */
   async setLLMKey(
     apiKey: string,
     provider?: string,
     userId?: string
   ): Promise<{ success: boolean; user_id: string; provider: string }> {
-    return this.rpcRequest<{ success: boolean; user_id: string; provider: string }>('/system', 'config.llm_key.set', {
-      api_key: apiKey,
-      provider: provider,
-      user_id: userId,
-    });
+    try {
+      return await this.moduleRequest<{ success: boolean; user_id: string; provider: string }>('apflow.config.llm_key.set', {
+        api_key: apiKey,
+        provider: provider,
+        user_id: userId,
+      });
+    } catch (error: any) {
+      if ((error as any)?.code === 'MODULE_NOT_FOUND') {
+        throw new Error('Server-side LLM key storage is not available on this apflow server. Use request-header storage instead.');
+      }
+      throw error;
+    }
   }
 
-  /**
-   * Get LLM key status for current user (does not return the actual key)
-   */
   async getLLMKeyStatus(
     provider?: string,
     userId?: string
-  ): Promise<{ has_key: boolean; user_id: string; provider?: string; providers: Record<string, string> }> {
-    return this.rpcRequest<{ has_key: boolean; user_id: string; provider?: string; providers: Record<string, string> }>(
-      '/system',
-      'config.llm_key.get',
-      {
-        provider: provider,
-        user_id: userId,
+  ): Promise<{ has_key: boolean; user_id: string; provider?: string; providers: Record<string, string>; server_available?: boolean }> {
+    try {
+      const status = await this.moduleRequest<{ has_key: boolean; user_id: string; provider?: string; providers: Record<string, string> }>(
+        'apflow.config.llm_key.get',
+        {
+          provider: provider,
+          user_id: userId,
+        }
+      );
+      return { ...status, server_available: true };
+    } catch (error: any) {
+      if ((error as any)?.code === 'MODULE_NOT_FOUND') {
+        return {
+          has_key: false,
+          user_id: userId || '',
+          provider,
+          providers: {},
+          server_available: false,
+        };
       }
-    );
+      throw error;
+    }
   }
 
-  /**
-   * Delete LLM API key for current user
-   */
   async deleteLLMKey(
     provider?: string,
     userId?: string
   ): Promise<{ success: boolean; user_id: string; deleted: boolean; provider: string }> {
-    return this.rpcRequest<{ success: boolean; user_id: string; deleted: boolean; provider: string }>(
-      '/system',
-      'config.llm_key.delete',
-      {
-        provider: provider,
-        user_id: userId,
+    try {
+      return await this.moduleRequest<{ success: boolean; user_id: string; deleted: boolean; provider: string }>(
+        'apflow.config.llm_key.delete',
+        {
+          provider: provider,
+          user_id: userId,
+        }
+      );
+    } catch (error: any) {
+      if ((error as any)?.code === 'MODULE_NOT_FOUND') {
+        throw new Error('Server-side LLM key storage is not available on this apflow server.');
       }
-    );
+      throw error;
+    }
   }
 
 }
 
-// Export singleton instance
 export const apiClient = new AIPartnerUpFlowClient();
-

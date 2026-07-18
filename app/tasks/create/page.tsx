@@ -205,9 +205,7 @@ export default function CreateTaskPage() {
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       
-      // Handle both response formats: CreateTaskResponse or Task object
-      const taskId = ('root_task_id' in data ? data.root_task_id : undefined) || 
-                     ('id' in data && typeof (data as { id?: string }).id === 'string' ? (data as { id: string }).id : undefined);
+      const taskId = data.root_task_id;
       
       notifications.show({
         title: t('common.success'),

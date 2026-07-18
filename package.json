@@ -12,7 +12,8 @@
     "export.env": "dotenv -e .env -- next build",
     "start": "next start",
     "start.env": "dotenv -e .env -- next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test tests/**/*.test.mjs"
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.3.5",
