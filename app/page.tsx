@@ -6,21 +6,14 @@
  * Main dashboard showing task statistics and recent tasks
  */
 
-import { Container, Title, Grid, Card, Text, Group, Badge, Stack, Alert, Button } from '@mantine/core';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Container, Title, Grid, Card, Text, Group, Badge, Stack } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/apflow';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'next/navigation';
-import { IconList, IconCheck, IconX, IconClock, IconDatabase, IconInfoCircle } from '@tabler/icons-react';
-import { notifications } from '@mantine/notifications';
-import { useEffect } from 'react';
-import { useAutoLoginContext } from '@/lib/contexts/AutoLoginContext';
+import { IconList, IconCheck, IconX, IconClock } from '@tabler/icons-react';
 
 export default function DashboardPage() {
   const { t } = useTranslation();
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const { isReady: autoLoginReady } = useAutoLoginContext();
 
   const { data: runningTasks, isLoading: loadingRunning } = useQuery({
     queryKey: ['running-tasks'],
@@ -41,57 +34,6 @@ export default function DashboardPage() {
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
-  // Check demo init status - wait for auto-login to complete before calling
-  const { data: demoInitStatus, isLoading: isLoadingDemoStatus, error: demoStatusError } = useQuery({
-    queryKey: ['demo-init-status'],
-    queryFn: () => apiClient.checkDemoInitStatus(),
-    retry: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: true, // Always refetch when component mounts to ensure check happens on first visit
-    enabled: autoLoginReady, // Only call after auto-login is ready
-  });
-
-  // Don't show error if API fails, just don't show the button
-  useEffect(() => {
-    if (demoStatusError) {
-      console.debug('Failed to check demo init status:', demoStatusError);
-    }
-  }, [demoStatusError]);
-
-  // Ensure demo init status is checked when auto-login becomes ready
-  // This ensures the check happens on first visit to dashboard
-  useEffect(() => {
-    if (autoLoginReady) {
-      // When auto-login becomes ready, ensure the demo init status query is executed
-      queryClient.refetchQueries({ queryKey: ['demo-init-status'] });
-    }
-  }, [autoLoginReady, queryClient]);
-
-  // Initialize demo tasks mutation
-  const initDemoTasksMutation = useMutation({
-    mutationFn: () => apiClient.initDemoTasks(),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['demo-init-status'] });
-      queryClient.invalidateQueries({ queryKey: ['all-tasks-stats'] });
-      notifications.show({
-        title: 'Success',
-        message: data.message || `Demo tasks initialized successfully. Created ${data.created_count} tasks.`,
-        color: 'green',
-      });
-      // Navigate to task list page after successful initialization
-      router.push('/tasks');
-    },
-    onError: (error: unknown) => {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to initialize demo tasks';
-      notifications.show({
-        title: 'Error',
-        message: errorMessage,
-        color: 'red',
-      });
-    },
-  });
-
   // Calculate statistics from all tasks
   const totalTasks = allTasks?.length || 0;
   const completedTasks = allTasks?.filter(task => task.status === 'completed').length || 0;
@@ -100,34 +42,6 @@ export default function DashboardPage() {
   return (
     <Container size="xl">
       <Title order={1} mb="xl">{t('dashboard.title')}</Title>
-
-      {/* Show demo init button if can_init is true */}
-      {!isLoadingDemoStatus && demoInitStatus?.success && demoInitStatus.can_init && (
-        <Alert 
-          icon={<IconInfoCircle size={16} />} 
-          color="blue" 
-          title="Initialize Demo Tasks"
-          mb="md"
-          withCloseButton
-          onClose={() => {
-            // Optionally hide the alert after closing
-          }}
-        >
-          <Group justify="space-between" align="center">
-            <Text size="sm">
-              {demoInitStatus.message || `${demoInitStatus.missing_executors?.length || 0} executors need demo tasks. Click the button to initialize.`}
-            </Text>
-            <Button
-              leftSection={<IconDatabase size={16} />}
-              onClick={() => initDemoTasksMutation.mutate()}
-              loading={initDemoTasksMutation.isPending}
-              size="sm"
-            >
-              Initialize Demo Tasks
-            </Button>
-          </Group>
-        </Alert>
-      )}
 
       <Grid gutter="md">
         <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>

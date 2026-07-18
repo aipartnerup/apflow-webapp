@@ -69,7 +69,6 @@ NEXT_PUBLIC_SHOW_AUTH_SETTINGS=true
 
 # Auto-login endpoint path (optional)
 # If set, enables automatic cookie-based authentication
-# Example: /auth/auto-login (for apflow-demo)
 # Leave empty or unset to disable auto-login
 NEXT_PUBLIC_AUTO_LOGIN_PATH=
 ```
@@ -161,7 +160,7 @@ apflow-webapp/
 
 - **API Settings**: Configure API base URL and authentication
   - **Developer Mode**: Show token input field (default)
-  - **Auto Login Mode**: Automatic cookie-based authentication (demo servers)
+  - **Auto Login Mode**: Automatic cookie-based authentication
   - **User Mode**: Hide token settings, show contact admin message
 - **LLM Settings**: Manage LLM API keys for AI-powered task execution (supports header-based and server-side storage)
 
@@ -187,22 +186,22 @@ await apiClient.cancelTasks([taskId1, taskId2]);
 
 ## Authentication
 
-The webapp supports two authentication modes for compatibility with different server types:
+The webapp supports two authentication modes:
 
-### Standard Server Authentication (JWT Token Required)
+### JWT Token Authentication (Default)
 
 For standard `apflow` servers:
 - **JWT token is required**: Set the authentication token in Settings page
 - Token is stored in `localStorage` as `auth_token`
 - Token is sent in `Authorization: Bearer <token>` header with every request
-- This is the default behavior and maintains backward compatibility
+- This is the default behavior
 
-### Demo Server Authentication (Automatic Cookie-Based)
+### Automatic Cookie-Based Authentication (Auto Login)
 
-For `apflow-demo` servers:
-- **JWT token is optional**: Demo servers automatically generate tokens via cookies
+When the server exposes an auto-login endpoint (configured via `NEXT_PUBLIC_AUTO_LOGIN_PATH`):
+- **JWT token is optional**: The server automatically issues a token via cookies
 - If no token is set, the browser automatically sends cookies (`authorization`)
-- Demo server middleware extracts the token from cookies and adds it to the Authorization header
+- Server middleware extracts the token from cookies and adds it to the Authorization header
 - If a manual token is provided, it will override the auto-generated token
 
 ### Implementation Details
@@ -212,13 +211,12 @@ The webapp uses the following authentication strategy:
 1. **Cookie Support**: All requests include `withCredentials: true` (axios) and `credentials: 'include'` (fetch) to enable cookie-based authentication
 2. **Conditional Authorization Header**: Authorization header is only added if `auth_token` exists in localStorage
 3. **Backward Compatible**: Standard servers continue to work as before (token required)
-4. **Demo Compatible**: Demo servers work automatically without manual token configuration
 
 ### For Developers Building Custom Clients
 
 If you're building a custom client based on this webapp:
 
-**Standard Server Integration:**
+**JWT Token Integration:**
 ```typescript
 // Always send Authorization header with token
 const token = localStorage.getItem('auth_token');
@@ -227,50 +225,23 @@ if (token) {
 }
 ```
 
-**Demo Server Integration:**
-```typescript
-// Enable cookies for automatic authentication
-const client = axios.create({
-  baseURL: apiUrl,
-  withCredentials: true, // Required for cookie-based auth
-});
-
-// Only add Authorization header if manual token exists
-// Demo server will handle authentication via cookies automatically
-const token = localStorage.getItem('auth_token');
-if (token) {
-  headers.Authorization = `Bearer ${token}`;
-}
-```
-
 **Unified Approach (Recommended):**
 ```typescript
-// Works for both standard and demo servers
+// Works for both token-based and cookie-based (auto-login) servers
 const client = axios.create({
   baseURL: apiUrl,
   withCredentials: true, // Safe to always enable
 });
 
-// Only send Authorization header if token exists
-// This allows demo servers to use cookie-based auth automatically
+// Only send Authorization header if a manual token exists;
+// otherwise cookie-based auto-login (when enabled) handles auth automatically
 const token = localStorage.getItem('auth_token');
 if (token) {
   headers.Authorization = `Bearer ${token}`;
 }
 ```
 
-**Note**: The `withCredentials: true` setting is safe to use with standard servers - it simply enables cookie support but doesn't break existing functionality. Standard servers will continue to require manual JWT tokens.
-
-### Backward Compatibility
-
-**All changes are backward compatible:**
-- ✅ Standard servers continue to work exactly as before (token required)
-- ✅ Existing integrations are not affected
-- ✅ `withCredentials: true` is safe for all server types
-- ✅ Authorization header behavior unchanged (only sent if token exists)
-- ✅ No breaking changes to API client interface
-
-The only new behavior is that demo servers can now work without manual token configuration, which doesn't affect standard server usage.
+**Note**: The `withCredentials: true` setting is safe to use with standard servers - it simply enables cookie support but doesn't break existing functionality.
 
 ## Configuration
 
@@ -290,16 +261,15 @@ Control visibility of authentication settings in the UI.
 Configure the auto-login endpoint path for automatic cookie-based authentication.
 
 - **Unset or empty** (default): Disable auto-login, require manual token configuration (standard mode)
-- **Set to path** (e.g., `/auth/auto-login`): Enable auto-login via cookies (demo mode)
+- **Set to path** (e.g., `/auth/auto-login`): Enable auto-login via cookies
 
 When set, the webapp will:
 - Hide token input field
 - Display "Auto Login Enabled" message
-- Automatically use cookie-based authentication
-- Work seamlessly with `apflow-demo` servers (which provide `/auth/auto-login` endpoint)
+- Automatically use cookie-based authentication against a server that exposes the endpoint
 
 **Example values:**
-- `/auth/auto-login` - Standard demo server endpoint
+- `/auth/auto-login` - Common auto-login endpoint path
 - `/api/auth/auto-login` - Custom endpoint path
 - Empty or unset - Disable auto-login
 
@@ -327,9 +297,9 @@ npm run build.env  # Production build with .env file
 - Shows authentication token input field
 - Developers can manually configure JWT tokens
 
-#### apflow-demo (Auto Login)
+#### Auto Login Mode
 
-For `apflow-demo` deployments with automatic authentication:
+For deployments with automatic cookie-based authentication:
 
 **Configuration** (create `.env` file):
 

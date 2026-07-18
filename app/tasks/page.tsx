@@ -6,7 +6,7 @@
  * Display list of all tasks with filtering and search, or task detail if ?id=xxx is provided
  */
 
-import { Container, Title, Button, Group, TextInput, Table, Badge, ActionIcon, Tooltip, Text, Select, Stack, Alert, useMantineColorScheme, Card, Code, Tabs, Progress } from '@mantine/core';
+import { Container, Title, Button, Group, TextInput, Table, Badge, ActionIcon, Tooltip, Text, Select, Stack, useMantineColorScheme, Card, Code, Tabs, Progress } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, Task } from '@/lib/api/apflow';
 import { useTranslation } from 'react-i18next';
@@ -14,8 +14,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { IconPlus, IconSearch, IconEye, IconCopy, IconTrash, IconDatabase, IconInfoCircle, IconPlayerPlay, IconChevronDown, IconChevronRight, IconArrowLeft, IconTree, IconCode, IconFileText, IconRefresh } from '@tabler/icons-react';
 import { useState, useRef, useEffect, Fragment, Suspense } from 'react';
 import { notifications } from '@mantine/notifications';
-import { useUseDemo } from '@/lib/contexts/UseDemoContext';
-import { useAutoLoginContext } from '@/lib/contexts/AutoLoginContext';
 import { TaskTreeView } from '@/components/tasks/TaskTreeView';
 
 function TaskListPageContent() {
@@ -24,8 +22,6 @@ function TaskListPageContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { colorScheme } = useMantineColorScheme();
-  const { useDemo } = useUseDemo();
-  const { isReady: autoLoginReady } = useAutoLoginContext();
   const [searchQuery, setSearchQuery] = useState('');
   
   // Get task ID from query parameter
@@ -47,48 +43,6 @@ function TaskListPageContent() {
       status: statusFilter,
       root_only: viewMode === 'root' 
     }),
-  });
-
-  // Check demo init status - wait for auto-login to complete before calling
-  const { data: demoInitStatus, isLoading: isLoadingDemoStatus, error: demoStatusError } = useQuery({
-    queryKey: ['demo-init-status'],
-    queryFn: () => apiClient.checkDemoInitStatus(),
-    retry: false,
-    refetchOnWindowFocus: false,
-    enabled: autoLoginReady, // Only call after auto-login is ready
-  });
-
-  // Don't show error if API fails, just don't show the button
-  useEffect(() => {
-    if (demoStatusError) {
-      console.debug('Failed to check demo init status:', demoStatusError);
-    }
-  }, [demoStatusError]);
-
-  // Initialize demo tasks mutation
-  const initDemoTasksMutation = useMutation({
-    mutationFn: () => apiClient.initDemoTasks(),
-    onSuccess: async (data) => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      // Wait a bit for backend to update status, then refresh demo init status
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      queryClient.invalidateQueries({ queryKey: ['demo-init-status'] });
-      // Refetch demo init status to get updated state
-      queryClient.refetchQueries({ queryKey: ['demo-init-status'] });
-      notifications.show({
-        title: 'Success',
-        message: data.message || `Demo tasks initialized successfully. Created ${data.created_count} tasks.`,
-        color: 'green',
-      });
-    },
-    onError: (error: unknown) => {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to initialize demo tasks';
-      notifications.show({
-        title: 'Error',
-        message: errorMessage,
-        color: 'red',
-      });
-    },
   });
 
   const deleteMutation = useMutation({
@@ -167,8 +121,7 @@ function TaskListPageContent() {
               });
             }
           }
-        },
-        useDemo // Pass global use_demo state
+        }
       );
     },
     onSuccess: (data) => {
@@ -253,9 +206,6 @@ function TaskListPageContent() {
     task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     task.id.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
-
-  // Check if there are any demo tasks in the task list
-  const hasDemoTasks = tasks?.some(task => task.name.startsWith('Demo:')) || false;
 
   // Helper function to check if a task should show loading/running state
   const isTaskExecuting = (task: Task, parentId?: string): boolean => {
@@ -466,8 +416,7 @@ function TaskListPageContent() {
               });
             }
           }
-        },
-        useDemo // Pass global use_demo state
+        }
       );
     },
     onSuccess: (data) => {
@@ -766,89 +715,11 @@ function TaskListPageContent() {
         />
       </Group>
 
-      {/* Show demo init button if can_init is true, but check if demo tasks already exist */}
-      {!isLoadingDemoStatus && demoInitStatus?.success && demoInitStatus.can_init && !hasDemoTasks && (
-        <Alert 
-          icon={<IconInfoCircle size={16} />} 
-          color="blue" 
-          title="Initialize Demo Tasks"
-          mb="md"
-          withCloseButton
-          onClose={() => {
-            // Optionally hide the alert after closing
-          }}
-        >
-          <Group justify="space-between" align="center">
-            <Text size="sm">
-              {demoInitStatus.message || `${demoInitStatus.missing_executors?.length || 0} executors need demo tasks. Click the button to initialize.`}
-            </Text>
-            <Group gap="xs">
-              <Button
-                variant="subtle"
-                leftSection={<IconRefresh size={16} />}
-                onClick={() => {
-                  queryClient.invalidateQueries({ queryKey: ['demo-init-status'] });
-                  queryClient.refetchQueries({ queryKey: ['demo-init-status'] });
-                }}
-                size="sm"
-              >
-                Refresh Status
-              </Button>
-              <Button
-                leftSection={<IconDatabase size={16} />}
-                onClick={() => initDemoTasksMutation.mutate()}
-                loading={initDemoTasksMutation.isPending}
-                size="sm"
-              >
-                Initialize Demo Tasks
-              </Button>
-            </Group>
-          </Group>
-        </Alert>
-      )}
-      
-      {/* Show warning if can_init is true but demo tasks exist (backend status may be stale) */}
-      {!isLoadingDemoStatus && demoInitStatus?.success && demoInitStatus.can_init && hasDemoTasks && (
-        <Alert 
-          icon={<IconInfoCircle size={16} />} 
-          color="yellow" 
-          title="Demo Tasks Status"
-          mb="md"
-          withCloseButton
-          onClose={() => {
-            // Optionally hide the alert after closing
-          }}
-        >
-          <Group justify="space-between" align="center">
-            <Text size="sm">
-              Demo tasks appear to exist, but backend status shows initialization is still needed. The status may be stale. Click refresh to update.
-            </Text>
-            <Button
-              variant="subtle"
-              leftSection={<IconRefresh size={16} />}
-              onClick={() => {
-                queryClient.invalidateQueries({ queryKey: ['demo-init-status'] });
-                queryClient.refetchQueries({ queryKey: ['demo-init-status'] });
-                queryClient.invalidateQueries({ queryKey: ['tasks'] });
-              }}
-              size="sm"
-            >
-              Refresh Status
-            </Button>
-          </Group>
-        </Alert>
-      )}
-
       {isLoading ? (
         <Text c="dimmed">{t('common.loading')}</Text>
       ) : filteredTasks.length === 0 ? (
         <Stack gap="md" align="center" py="xl">
           <Text c="dimmed" size="lg">{t('tasks.noTasks')}</Text>
-          {!isLoadingDemoStatus && demoInitStatus && !demoInitStatus.can_init && (
-            <Alert icon={<IconInfoCircle size={16} />} color="green" title="Demo Tasks Already Initialized">
-              {demoInitStatus.message || 'All demo tasks have already been initialized. You can create new tasks using the "Create Task" button.'}
-            </Alert>
-          )}
         </Stack>
       ) : (
         <Table striped highlightOnHover>

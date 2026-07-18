@@ -10,7 +10,6 @@ import './globals.css';
 import { AppShellWrapper } from '@/components/layout/AppShell';
 import { I18nProvider } from '@/lib/i18n/provider';
 import { QueryProvider } from '@/lib/providers/QueryProvider';
-import { UseDemoProvider } from '@/lib/contexts/UseDemoContext';
 import { AutoLoginProvider } from '@/lib/contexts/AutoLoginContext';
 import { themeConfig } from '@/lib/theme/config';
 
@@ -40,12 +39,10 @@ export default function RootLayout({
             <MantineProvider theme={themeConfig} defaultColorScheme="auto">
               <DatesProvider settings={{}}>
                 <AutoLoginProvider>
-                  <UseDemoProvider>
-                    <Notifications position="top-right" />
-                    <AppShellWrapper>
-                      {children}
-                    </AppShellWrapper>
-                  </UseDemoProvider>
+                  <Notifications position="top-right" />
+                  <AppShellWrapper>
+                    {children}
+                  </AppShellWrapper>
                 </AutoLoginProvider>
               </DatesProvider>
             </MantineProvider>

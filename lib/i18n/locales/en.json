@@ -89,7 +89,7 @@
     "authentication": "Authentication",
     "authToken": "Authentication Token",
     "authTokenPlaceholder": "Enter JWT token (optional)",
-    "authTokenHelp": "For standard servers, a JWT token is required. For demo servers, authentication is handled automatically via cookies.",
+    "authTokenHelp": "A JWT token is required to authenticate with the API server.",
     "saveSettings": "Save Settings",
     "autoLoginEnabled": "Auto Login Enabled",
     "autoLoginMessage": "Authentication is handled automatically via browser cookies. No manual configuration needed.",

@@ -89,7 +89,7 @@
     "authentication": "认证",
     "authToken": "认证令牌",
     "authTokenPlaceholder": "输入JWT令牌（可选）",
-    "authTokenHelp": "对于标准服务器，需要JWT令牌。对于演示服务器，认证通过Cookie自动处理。",
+    "authTokenHelp": "需要JWT令牌才能与API服务器进行认证。",
     "saveSettings": "保存设置",
     "autoLoginEnabled": "自动登录已启用",
     "autoLoginMessage": "认证通过浏览器Cookie自动处理，无需手动配置。",

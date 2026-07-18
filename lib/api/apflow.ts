@@ -148,7 +148,6 @@ export class AIPartnerUpFlowClient {
         'Content-Type': 'application/json',
       },
       // Enable credentials (cookies) for cross-origin requests
-      // This allows demo server's cookie-based authentication to work automatically
       withCredentials: true,
       // Add timeout to prevent hanging requests
       timeout: 30000, // 30 seconds
@@ -156,14 +155,12 @@ export class AIPartnerUpFlowClient {
 
     // Add request interceptor for authentication and LLM key
     // Only add Authorization header if token exists in localStorage
-    // If no token, let browser cookies work automatically (demo middleware will add Authorization header)
     this.client.interceptors.request.use((config) => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
-      // If no token, don't add Authorization header - let demo server's cookie middleware handle it
-      
+
       // Add LLM API key from localStorage if available (request header method)
       // Format: provider:key (e.g., "openai:sk-xxx...") or just key (backward compatible)
       // Support provider-specific keys: llm_api_key_<provider> or default llm_api_key
@@ -553,14 +550,12 @@ export class AIPartnerUpFlowClient {
    * @param taskId Task ID to execute
    * @param useStreaming If true, enables SSE streaming for real-time updates (default: true)
    * @param onEvent Optional callback for SSE events when useStreaming is true
-   * @param useDemo If true, uses demo mode (returns pre-computed demo data instead of actual execution)
    * @returns Execution response with root_task_id. If useStreaming=true, returns initial response and streams events via onEvent
    */
   async executeTask(
     taskId: string,
     useStreaming = true,
-    onEvent?: (event: TaskEvent) => void,
-    useDemo?: boolean
+    onEvent?: (event: TaskEvent) => void
   ): Promise<TaskExecutionResponse> {
     // First, get task details to detect provider for LLM key
     let provider: string | undefined;
@@ -577,9 +572,6 @@ export class AIPartnerUpFlowClient {
       task_id: taskId,
       use_streaming: useStreaming,
     };
-    if (useDemo !== undefined) {
-      requestParams.use_demo = useDemo;
-    }
     const request: JsonRpcRequest = {
       jsonrpc: '2.0',
       method: 'tasks.execute',
@@ -628,7 +620,7 @@ export class AIPartnerUpFlowClient {
       const allHeaders = { ...headers, ...authHeaders };
       
       // Use fetch for SSE streaming
-      // Include credentials to send cookies (needed for demo server's cookie-based auth)
+      // Include credentials to send cookies for cross-origin requests
       const response = await fetch(`${this.baseURL}/tasks`, {
         method: 'POST',
         headers: allHeaders,
@@ -1010,71 +1002,6 @@ export class AIPartnerUpFlowClient {
     );
   }
 
-  // Demo Tasks Management Methods
-
-  /**
-   * Check demo init status for current user
-   * 
-   * Checks which executors already have demo tasks for the current user.
-   * Returns status information including whether demo init can be performed.
-   */
-  async checkDemoInitStatus(): Promise<{
-    success: boolean;
-    can_init: boolean;
-    total_executors: number;
-    existing_executors: string[];
-    missing_executors: string[];
-    executor_details: Record<string, any>;
-    message: string;
-  }> {
-    try {
-      const response = await this.client.get<{
-        success: boolean;
-        can_init: boolean;
-        total_executors: number;
-        existing_executors: string[];
-        missing_executors: string[];
-        executor_details: Record<string, any>;
-        message: string;
-      }>('/api/demo/tasks/init-status');
-      
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.data) {
-        throw new Error(error.response.data.message || error.response.data.error || 'Failed to check demo init status');
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Initialize demo tasks for current user
-   * 
-   * Creates demo tasks for the current user (user_id extracted from JWT/cookie automatically).
-   * The created tasks will appear in the normal task list via standard API.
-   */
-  async initDemoTasks(): Promise<{
-    success: boolean;
-    created_count: number;
-    task_ids: string[];
-    message: string;
-  }> {
-    try {
-      const response = await this.client.post<{
-        success: boolean;
-        created_count: number;
-        task_ids: string[];
-        message: string;
-      }>('/api/demo/tasks/init-executors');
-      
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.data) {
-        throw new Error(error.response.data.message || error.response.data.error || 'Failed to initialize demo tasks');
-      }
-      throw error;
-    }
-  }
 }
 
 // Export singleton instance

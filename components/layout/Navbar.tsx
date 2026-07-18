@@ -6,7 +6,7 @@
  * Left sidebar navigation with menu items, sub-menus, and bottom controls
  */
 
-import { AppShell, NavLink, Group, Text, Select, Divider, Stack, Switch, Burger } from '@mantine/core';
+import { AppShell, NavLink, Group, Text, Select, Divider, Stack, Burger } from '@mantine/core';
 import { useMantineColorScheme } from '@mantine/core';
 import {
   IconDashboard,
@@ -19,14 +19,12 @@ import {
   IconSun,
   IconMoon,
   IconBrandGithub,
-  IconTestPipe,
   IconClock,
 } from '@tabler/icons-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { useUseDemo } from '@/lib/contexts/UseDemoContext';
 
 interface AppNavbarProps {
   onNavigate?: () => void;
@@ -41,7 +39,6 @@ export function AppNavbar({ onNavigate, mobileOpened, desktopOpened, onToggleMob
   const pathname = usePathname();
   const { t, i18n } = useTranslation();
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
-  const { useDemo, setUseDemo } = useUseDemo();
   const [language, setLanguage] = useState(i18n.language);
   const [mounted, setMounted] = useState(false);
 
@@ -313,42 +310,10 @@ export function AppNavbar({ onNavigate, mobileOpened, desktopOpened, onToggleMob
                 style={{ width: '100%' }}
               />
               <Divider my={4} />
-              {mounted && (
-                <Group gap="xs" p="xs" style={{ borderRadius: 'var(--mantine-radius-md)' }}>
-                  <IconTestPipe size={18} style={{ flexShrink: 0, color: colorScheme === 'dark' ? undefined : 'var(--mantine-color-gray-9)' }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Text size="sm" fw={500} truncate c={colorScheme === 'dark' ? undefined : 'var(--mantine-color-gray-9)'}>
-                      Demo Mode
-                    </Text>
-                    <Text size="xs" c={colorScheme === 'dark' ? 'dimmed' : 'gray.7'} truncate>
-                      Use demo data for execution
-                    </Text>
-                  </div>
-                  <Switch
-                    checked={useDemo}
-                    onChange={(event) => setUseDemo(event.currentTarget.checked)}
-                    size="sm"
-                  />
-                </Group>
-              )}
-              <Divider my={4} />
               <NavLink
                 label="WebApp"
                 leftSection={<IconBrandGithub size={18} />}
                 href="https://github.com/aiperceivable/apflow-webapp"
-                target="_blank"
-                rel="noopener noreferrer"
-                component="a"
-                style={{ 
-                  cursor: 'pointer',
-                  borderRadius: 'var(--mantine-radius-md)',
-                  marginTop: 0,
-                }}
-              />
-              <NavLink
-                label="API Server"
-                leftSection={<IconBrandGithub size={18} />}
-                href="https://github.com/aiperceivable/apflow-demo"
                 target="_blank"
                 rel="noopener noreferrer"
                 component="a"
@@ -365,14 +330,6 @@ export function AppNavbar({ onNavigate, mobileOpened, desktopOpened, onToggleMob
               <NavLink
                 label=""
                 leftSection={<IconLanguage size={18} />}
-                style={{ 
-                  justifyContent: 'center'
-                }}
-                className="collapsed-navlink"
-              />
-              <NavLink
-                label=""
-                leftSection={<IconTestPipe size={18} />}
                 style={{ 
                   justifyContent: 'center'
                 }}

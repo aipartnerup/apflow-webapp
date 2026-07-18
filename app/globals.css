@@ -281,18 +281,6 @@ body {
   padding: var(--mantine-spacing-xs) !important;
 }
 
-/* Improve Demo Mode block contrast in light mode */
-[data-mantine-color-scheme="light"] .demo-mode-block {
-  background: #f0f1f3;
-  border-radius: var(--mantine-radius-md);
-  color: #222;
-}
-[data-mantine-color-scheme="dark"] .demo-mode-block {
-  background: var(--mantine-color-dark-7);
-  border-radius: var(--mantine-radius-md);
-  color: var(--mantine-color-dark-0);
-}
-
 /* Improve the contrast of the Table header in light mode */
 [data-mantine-color-scheme="light"] .mantine-Table-thead {
   background-color: #f0f1f3 !important;
